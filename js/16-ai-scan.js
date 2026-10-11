@@ -6,6 +6,19 @@
  * ============================================================ */
 
 // ==================== SCAN MODAL ====================
+let scanVocabFilter = 'missing'; // 'missing' | 'learning' | 'almost' | 'both' | 'all'
+
+function setScanVocabFilter(filter) {
+  scanVocabFilter = filter;
+  document.querySelectorAll('[data-scan-filter]').forEach(btn => {
+    const on = btn.dataset.scanFilter === filter;
+    btn.className = `px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
+      on ? 'bg-crimson-600 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+    }`;
+  });
+  openScanModal('vocab');
+}
+
 function openScanModal(type) {
   currentScanType = type;
   const titleElem = document.getElementById('scan-modal-title');
@@ -13,19 +26,31 @@ function openScanModal(type) {
   const countElem = document.getElementById('missing-count');
   const tagsBox = document.getElementById('missing-tags-container');
   const promptPreview = document.getElementById('ai-prompt-preview');
+  const filterBar = document.getElementById('scan-vocab-filter-bar');
   document.getElementById('quick-import-json').value = '';
   const activeDocs = docs.filter(d => !d.hidden);
   const combinedText = activeDocs.map(d => d.content).join(' ');
   let missingList = [];
 
+  // Toggle filter bar: chỉ hiện cho vocab
+  if (filterBar) filterBar.classList.toggle('hidden', type !== 'vocab');
+
   if (type === 'vocab') {
-    titleElem.innerText = "Quét Từ vựng chưa có dữ liệu & Prompt AI";
-    subElem.innerText = "Chỉ quét từ chưa có dữ liệu VÀ chưa đánh dấu 'Đã biết'";
+    titleElem.innerText = "Quét Từ vựng & Prompt AI";
+    subElem.innerText = "Lọc theo trạng thái LingQ để nạp dữ liệu phù hợp";
     const words = combinedText.split(/\s+/);
     const uniqueWords = Array.from(new Set(words.map(w => cleanEnglishWord(w)).filter(w => w.length > 0)));
     missingList = uniqueWords.filter(word => {
-      const isKnown = statusDb.vocab && statusDb.vocab[word] === 4;
-      return !isKnown && !vocabDb[word];
+      const lvl = getLingqStatus('vocab', word);
+      const hasData = !!vocabDb[word];
+      switch (scanVocabFilter) {
+        case 'learning': return lvl === 2;
+        case 'almost':   return lvl === 3;
+        case 'both':     return lvl === 2 || lvl === 3;
+        case 'all':      return true;
+        case 'missing':
+        default:         return !hasData && lvl !== 4;
+      }
     });
   } else if (type === 'grammar') {
     titleElem.innerText = "Quét cấu trúc ngữ pháp CHƯA có trong từ điển";
