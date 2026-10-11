@@ -2,43 +2,108 @@
  * FILE: 16-ai-scan.js
  * DOMAIN: Scan modal, AI prompt generator, JSON import, validate
  * DEPENDS: 03-state, 04-ui-shared, 05-vocab, 09-grammar-engine,
- *          13-sentence-mining
+ *          13-sentence-mining, 02-text-utils
  * ============================================================ */
 
 // ==================== SCAN MODAL ====================
-function openScanModal(type) {
+function openScanModal(type, opts = {}) {
   currentScanType = type;
-  const titleElem = document.getElementById('scan-modal-title');
-  const subElem = document.getElementById('scan-modal-sub');
-  const countElem = document.getElementById('missing-count');
-  const tagsBox = document.getElementById('missing-tags-container');
+
+  const titleElem  = document.getElementById('scan-modal-title');
+  const subElem    = document.getElementById('scan-modal-sub');
+  const countElem  = document.getElementById('missing-count');
+  const tagsBox    = document.getElementById('missing-tags-container');
   const promptPreview = document.getElementById('ai-prompt-preview');
-  document.getElementById('quick-import-json').value = '';
+
+  // Hiện/ẩn khối tùy chọn gộp biến thể (chỉ dành cho vocab)
+  const dedupeBox = document.getElementById('vocab-dedupe-options');
+  if (dedupeBox) {
+    dedupeBox.classList.toggle('hidden', type !== 'vocab');
+  }
+
+  // Chỉ reset textarea JSON khi KHÔNG preserveJson
+  if (!opts.preserveJson) {
+    document.getElementById('quick-import-json').value = '';
+  }
+
   const activeDocs = docs.filter(d => !d.hidden);
   const combinedText = activeDocs.map(d => d.content).join(' ');
   let missingList = [];
 
+  // ----------------------------------------------------------
+  // VOCAB
+  // ----------------------------------------------------------
   if (type === 'vocab') {
     titleElem.innerText = "Quét Từ vựng chưa có dữ liệu & Prompt AI";
-    subElem.innerText = "Chỉ quét từ chưa có dữ liệu VÀ chưa đánh dấu 'Đã biết'";
+    subElem.innerText = "Đã gộp biến thể (số nhiều, sở hữu cách, đuôi động từ...).";
+
+    const optPossessive = document.getElementById('opt-skip-possessive')?.checked ?? true;
+    const optPlural     = document.getElementById('opt-skip-plural')?.checked     ?? true;
+    const optVerb       = document.getElementById('opt-skip-verb')?.checked       ?? true;
+    const optSortRank   = document.getElementById('opt-sort-by-rank')?.checked    ?? false;
+
+    const canonOpts = {
+      skipPossessive: optPossessive,
+      skipPlural:     optPlural,
+      skipVerbForms:  optVerb
+    };
+
     const words = combinedText.split(/\s+/);
-    const uniqueWords = Array.from(new Set(words.map(w => cleanEnglishWord(w)).filter(w => w.length > 0)));
-    missingList = uniqueWords.filter(word => {
-      const isKnown = statusDb.vocab && statusDb.vocab[word] === 4;
-      return !isKnown && !vocabDb[word];
+    const cleaned = words
+      .map(w => cleanEnglishWord(w))
+      .filter(w => w.length > 0);
+
+    // Gộp biến thể: canonical → Set(originals)
+    const mergedMap = {};
+    cleaned.forEach(w => {
+      const c = canonicalizeWord(w, canonOpts);
+      if (!c) return;
+      if (!mergedMap[c]) mergedMap[c] = new Set();
+      mergedMap[c].add(w);
     });
+
+    // Lọc "còn thiếu" theo canonical
+    missingList = Object.entries(mergedMap)
+      .filter(([c]) => {
+        const isKnown = statusDb.vocab && statusDb.vocab[c] === 4;
+        return !isKnown && !vocabDb[c];
+      })
+      .map(([c, origins]) => {
+        // Dùng String object để giữ metadata cho tooltip
+        const obj = new String(c);        // eslint-disable-line no-new-wrappers
+        obj.__mergedFrom = [...origins];
+        return obj;
+      });
+
+    if (optSortRank && typeof getItemRank === 'function') {
+      missingList.sort((a, b) =>
+        getItemRank('vocab', String(a)) - getItemRank('vocab', String(b))
+      );
+    }
+
+  // ----------------------------------------------------------
+  // GRAMMAR
+  // ----------------------------------------------------------
   } else if (type === 'grammar') {
     titleElem.innerText = "Quét cấu trúc ngữ pháp CHƯA có trong từ điển";
     subElem.innerText = "Duyệt từng câu, phát hiện các token có tiềm năng ngữ pháp nhưng chưa được khai báo.";
     missingList = scanMissingGrammarPatterns();
+
+  // ----------------------------------------------------------
+  // SENTENCE
+  // ----------------------------------------------------------
   } else if (type === 'sentence') {
     titleElem.innerText = "Quét Sentence Card CHƯA có nghĩa";
     subElem.innerText = "Chỉ quét các Sentence Card có needsData = true (chưa được AI nạp nghĩa).";
     missingList = scanMissingSentenceCards();
   }
 
+  // ----------------------------------------------------------
+  // RENDER kết quả
+  // ----------------------------------------------------------
   countElem.innerText = missingList.length;
   tagsBox.innerHTML = '';
+
   if (missingList.length === 0) {
     const label = type === 'vocab' ? 'Từ vựng' : 'Cấu trúc ngữ pháp';
     tagsBox.innerHTML = `<span class="text-emerald-700 text-xs font-semibold py-1">🎉 Tuyệt vời! Không còn ${label} nào cần nạp dữ liệu.</span>`;
@@ -47,27 +112,44 @@ function openScanModal(type) {
     missingList.forEach(item => {
       const span = document.createElement('span');
       span.className = "px-2 py-0.5 bg-white border border-stone-200 rounded text-stone-800 text-xs font-english";
-      span.innerText = typeof item === 'string' ? item : (item.label || item.id || JSON.stringify(item));
+      const label = (typeof item === 'string')
+        ? String(item)
+        : (item.label || item.id || JSON.stringify(item));
+      span.innerText = label;
+
+      // Tooltip cho từ đã gộp biến thể
+      if (item.__mergedFrom && item.__mergedFrom.length > 1) {
+        span.title = `Gộp từ: ${item.__mergedFrom.join(', ')}`;
+        span.classList.add('border-amber-300', 'bg-amber-50');
+      }
       tagsBox.appendChild(span);
     });
+
     promptPreview.value = generateAiPrompt(type, missingList);
   }
+
   currentMissingList = missingList;
   openModal('modal-scan');
 }
 
+// ==================== RESCAN (chỉ dành cho vocab) ====================
+function reScanVocab() {
+  if (currentScanType !== 'vocab') return;
+  openScanModal('vocab', { preserveJson: true });
+}
+
+// ==================== GRAMMAR SCANNER ====================
 function scanMissingGrammarPatterns() {
   const candidates = [];
 
   Object.entries(grammarDb._patterns || {}).forEach(([id, p]) => {
     if (!p || typeof p !== 'object') return;
 
-    const hasMeaning = p.meaning && 
-                       p.meaning.trim() !== "" && 
+    const hasMeaning = p.meaning &&
+                       p.meaning.trim() !== "" &&
                        p.meaning !== "Chờ AI nạp nghĩa...";
 
     const isMissing = !hasMeaning || p.needsData === true;
-
     if (!isMissing) return;
 
     const type = p.type || 'pair';
@@ -123,9 +205,7 @@ function scanMissingGrammarPatterns() {
         prev:    pattern.context.prev    || '',
         next:    pattern.context.next    || ''
       };
-      if (cand.context.current) {
-        cand.sampleSentences.push(cand.context.current);
-      }
+      if (cand.context.current) cand.sampleSentences.push(cand.context.current);
       return;
     }
 
@@ -167,10 +247,13 @@ function scanMissingGrammarPatterns() {
   return candidates;
 }
 
+// ==================== MARK / COPY ====================
 function markAllMissingAsKnown() {
   if (currentMissingList.length === 0) return;
   currentMissingList.forEach(item => {
-    const key = typeof item === 'string' ? item : (item.token || item);
+    const key = (typeof item === 'string')
+      ? String(item)
+      : (item.token || String(item));
     statusDb.vocab[key] = 4;
   });
   saveAllData();
@@ -180,7 +263,9 @@ function markAllMissingAsKnown() {
 }
 
 function copyMissingItemsOnly() {
-  const list = currentMissingList.map(item => typeof item === 'string' ? item : (item.token || ''));
+  const list = currentMissingList.map(item =>
+    (typeof item === 'string') ? String(item) : (item.token || '')
+  );
   copyToClipboard(list.join(', '), "Đã sao chép danh sách mục còn thiếu!");
 }
 
@@ -191,7 +276,11 @@ function copyGeneratedPrompt() {
 // ==================== PROMPT GENERATORS ====================
 function generateAiPrompt(type, items) {
   if (type === 'hanzi' || type === 'vocab') {
-    const itemKeys = items.map(i => typeof i === 'string' ? i : (i.token || i.word || ''));
+    const itemKeys = items.map(i => {
+      if (typeof i === 'string') return i;
+      if (i instanceof String)   return String(i);
+      return i.token || i.word || '';
+    });
     return `You are an expert English linguist and ESL teacher. I'm building a reading-comprehension app and need complete, accurate JSON data for the following English words/phrases.
 
 WORD LIST (${itemKeys.length} items):
