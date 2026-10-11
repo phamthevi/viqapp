@@ -3,6 +3,14 @@
  * DOMAIN: Backup/Restore JSON, SupabaseSync, delta sync
  * DEPENDS: 01-storage, 03-state, 04-ui-shared, 09-grammar-engine,
  *          10-grammar-ui, 13-sentence-mining
+ *
+ * SOFT-DELETE MODEL:
+ *   - KHÔNG BAO GIỜ xóa cứng object ở local.
+ *   - Mọi xóa đều gán deletedAt (docs/vocab/grammar/sentence/aliasGroup)
+ *     hoặc deleted=true + deletedAt (fsrs).
+ *   - Render phải filter theo aliveDocs()/aliveVocab()/...
+ *   - Sync push tombstone lên cloud (deleted_at != null) để cloud biết.
+ *   - Sync pull tombstone từ cloud về local để đồng bộ 2 chiều.
  * ============================================================ */
 
 // ==================== SUPABASE SDK WRAPPER ====================
@@ -28,6 +36,102 @@ window.SupabaseSync = {
     }
   }
 };
+
+// ==================== SOFT-DELETE HELPERS ====================
+// Dùng chung cho mọi collection. Gọi từ các file khác khi cần xóa.
+
+function softDeleteDoc(id) {
+  const d = docs.find(x => x.id === id);
+  if (!d || d.deletedAt) return false;
+  d.deletedAt = Date.now();
+  d.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteVocab(word) {
+  const v = vocabDb[word];
+  if (!v || v.deletedAt) return false;
+  v.deletedAt = Date.now();
+  v.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteStatus(type, key) {
+  // statusDb là level đơn giản — biểu diễn xóa bằng cách set level=0 + timestamp
+  if (!statusDb[type]) return false;
+  if (statusDb[type][key] === undefined) return false;
+  statusDb[type][key] = 0;
+  if (!statusTimestamps[type]) statusTimestamps[type] = {};
+  statusTimestamps[type][key] = Date.now();
+  return true;
+}
+
+function softDeleteFsrs(type, key) {
+  if (!fsrsPool[type] || !fsrsPool[type][key]) return false;
+  const item = fsrsPool[type][key];
+  item.deleted = true;
+  item.deletedAt = Date.now();
+  item.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteGrammarPattern(id) {
+  const p = grammarDb._patterns && grammarDb._patterns[id];
+  if (!p || p.deletedAt) return false;
+  p.deletedAt = Date.now();
+  p.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteGrammarAliasGroup(name) {
+  if (!grammarDb._aliasGroups || grammarDb._aliasGroups[name] === undefined) return false;
+  if (!grammarDb._aliasGroupTimestamps) grammarDb._aliasGroupTimestamps = {};
+  // Đánh dấu bằng tokens = null + timestamp; pull sẽ hiểu deleted_at
+  grammarDb._aliasGroups[name] = null;
+  grammarDb._aliasGroupTimestamps[name] = Date.now();
+  return true;
+}
+
+function softDeleteSentenceCard(id) {
+  const s = sentenceDb && sentenceDb[id];
+  if (!s || s.deletedAt) return false;
+  s.deletedAt = Date.now();
+  s.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteGrammarFsrs(pid) {
+  if (!grammarFsrsPool[pid]) return false;
+  const item = grammarFsrsPool[pid];
+  item.deleted = true;
+  item.deletedAt = Date.now();
+  item.updatedAt = Date.now();
+  return true;
+}
+
+function softDeleteSentenceFsrs(sid) {
+  if (!sentenceFsrsPool[sid]) return false;
+  const item = sentenceFsrsPool[sid];
+  item.deleted = true;
+  item.deletedAt = Date.now();
+  item.updatedAt = Date.now();
+  return true;
+}
+
+// ==================== ALIVE FILTERS (cho UI render) ====================
+// Mọi chỗ render PHẢI dùng các helper này thay vì truy cập trực tiếp.
+
+function aliveDocs()            { return docs.filter(d => !d.deletedAt); }
+function aliveFolders()         { return folders.filter(f => !f.deletedAt); }
+function aliveVocabEntries()    { return Object.entries(vocabDb).filter(([_, v]) => !v.deletedAt); }
+function aliveGrammarEntries()  { return Object.entries(grammarDb._patterns || {}).filter(([_, p]) => !p.deletedAt); }
+function aliveAliasGroupEntries() {
+  return Object.entries(grammarDb._aliasGroups || {}).filter(([_, tokens]) => tokens !== null);
+}
+function aliveSentenceEntries() { return Object.entries(sentenceDb || {}).filter(([_, s]) => !s.deletedAt); }
+function aliveVocabFsrsEntries()    { return Object.entries(fsrsPool.vocab || {}).filter(([_, f]) => !f.deleted); }
+function aliveGrammarFsrsEntries()  { return Object.entries(grammarFsrsPool || {}).filter(([_, f]) => !f.deleted); }
+function aliveSentenceFsrsEntries() { return Object.entries(sentenceFsrsPool || {}).filter(([_, f]) => !f.deleted); }
 
 // ==================== NORMALIZE HELPERS ====================
 // Chuyển đổi giữa local shape và cloud shape cho grammar/sentence
@@ -65,7 +169,8 @@ function cloudGrammarToPattern(row) {
     examples: row.examples || [],
     needsData: row.needs_data === true,
     context: row.context || {},
-    updatedAt: new Date(row.updated_at).getTime()
+    updatedAt: new Date(row.updated_at).getTime(),
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null
   };
   if (row.left_group) p.leftGroup = row.left_group;
   else if (Array.isArray(row.left_tokens) && row.left_tokens.length) p.left = row.left_tokens;
@@ -414,6 +519,7 @@ async function forceFullResync() {
   await syncWithSupabase();
 }
 
+// ==================== FORCE PULL ALL ====================
 async function forcePullAllFromCloud() {
   const sb = window.SupabaseSync.client;
   const user = window.SupabaseSync.currentUser;
@@ -442,16 +548,17 @@ async function forcePullAllFromCloud() {
     const PAGE_SIZE = 1000;
 
     // ============ FOLDERS ============
+    // Vẫn giữ tombstone (deleted_at != null) để đồng bộ tiếp về sau.
     {
       const { data: cloudFolders, error: errF } = await sb.from('folders').select('*');
       if (errF) throw errF;
-      folders = (cloudFolders || []).filter(row => !row.deleted_at).map(row => ({
+      folders = (cloudFolders || []).map(row => ({
         id: row.id, name: row.name,
         createdAt: row.created_at,
         updatedAt: new Date(row.updated_at).getTime(),
         deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null
       }));
-      pullStats.folders = folders.length;
+      pullStats.folders = folders.filter(f => !f.deletedAt).length;
     }
 
     // ============ VOCAB ============
@@ -466,19 +573,18 @@ async function forcePullAllFromCloud() {
     }
     vocabDb = {};
     allVocab.forEach(row => {
-      if (!row.deleted_at) {
-        vocabDb[row.id] = {
-          ipa: row.ipa || row.pinyin || '',
-          pos: row.pos || '',
-          meaning: row.meaning || '',
-          logic: row.logic || '',
-          examples: row.examples || [],
-          level: row.level_cefr || '',
-          updatedAt: new Date(row.updated_at).getTime()
-        };
-      }
+      vocabDb[row.id] = {
+        ipa: row.ipa || row.pinyin || '',
+        pos: row.pos || '',
+        meaning: row.meaning || '',
+        logic: row.logic || '',
+        examples: row.examples || [],
+        level: row.level_cefr || '',
+        updatedAt: new Date(row.updated_at).getTime(),
+        deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null
+      };
     });
-    pullStats.vocab = Object.keys(vocabDb).length;
+    pullStats.vocab = allVocab.filter(r => !r.deleted_at).length;
 
     // ============ DOCS ============
     let allDocs = []; offset = 0;
@@ -490,15 +596,15 @@ async function forcePullAllFromCloud() {
       if (data.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
     }
-    docs = allDocs.filter(row => !row.deleted_at).map(row => ({
+    docs = allDocs.map(row => ({
       id: row.id, title: row.title, content: row.content,
       folderId: row.folder_id, hidden: row.hidden,
       testStatus: row.test_status || { tested: false, lastTestDate: null, corruptionRate: 0, failed: false, lockedUntil: null, retested: false, trackedItems: [] },
       createdAt: row.created_at,
       updatedAt: new Date(row.updated_at).getTime(),
-      deletedAt: null
+      deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null
     }));
-    pullStats.docs = docs.length;
+    pullStats.docs = allDocs.filter(r => !r.deleted_at).length;
 
     // ============ USER_PROGRESS (chỉ vocab) ============
     let allProgress = []; offset = 0;
@@ -521,7 +627,8 @@ async function forcePullAllFromCloud() {
       if (!statusTimestamps[type]) statusTimestamps[type] = {};
       if (!fsrsPool[type]) fsrsPool[type] = {};
       const cTime = new Date(row.updated_at).getTime();
-      statusDb[type][key] = row.level || 1;
+      // Giữ tombstone của status bằng cách set level=0
+      statusDb[type][key] = row.deleted_at ? 0 : (row.level || 1);
       statusTimestamps[type][key] = cTime;
       if (!row.deleted_at && row.next_review) {
         fsrsPool[type][key] = {
@@ -532,11 +639,12 @@ async function forcePullAllFromCloud() {
           usedSentences: row.used_sentences || [],
           rank: row.rank || 9999,
           updatedAt: cTime,
-          deleted: false
+          deleted: false,
+          deletedAt: 0
         };
       }
     });
-    pullStats.progress = allProgress.length;
+    pullStats.progress = allProgress.filter(r => !r.deleted_at).length;
 
     // ============ GRAMMAR ALIAS GROUPS ============
     {
@@ -545,11 +653,12 @@ async function forcePullAllFromCloud() {
       grammarDb._aliasGroups = {};
       grammarDb._aliasGroupTimestamps = {};
       (data || []).forEach(row => {
-        if (row.deleted_at) return;
-        grammarDb._aliasGroups[row.name] = row.tokens || [];
-        grammarDb._aliasGroupTimestamps[row.name] = new Date(row.updated_at).getTime();
+        const cTime = new Date(row.updated_at).getTime();
+        // tokens = null đại diện tombstone
+        grammarDb._aliasGroups[row.name] = row.deleted_at ? null : (row.tokens || []);
+        grammarDb._aliasGroupTimestamps[row.name] = cTime;
       });
-      pullStats.aliasGroups = Object.keys(grammarDb._aliasGroups).length;
+      pullStats.aliasGroups = (data || []).filter(r => !r.deleted_at).length;
     }
 
     // ============ GRAMMAR PATTERNS ============
@@ -564,10 +673,9 @@ async function forcePullAllFromCloud() {
     }
     grammarDb._patterns = {};
     allGrammar.forEach(row => {
-      if (row.deleted_at) return;
       grammarDb._patterns[row.id] = cloudGrammarToPattern(row);
     });
-    pullStats.grammar = Object.keys(grammarDb._patterns).length;
+    pullStats.grammar = allGrammar.filter(r => !r.deleted_at).length;
 
     // ============ SENTENCE CARDS ============
     let allSentences = []; offset = 0;
@@ -581,10 +689,9 @@ async function forcePullAllFromCloud() {
     }
     sentenceDb = {};
     allSentences.forEach(row => {
-      if (row.deleted_at) return;
       sentenceDb[row.id] = cloudSentenceToCard(row);
     });
-    pullStats.sentenceCards = Object.keys(sentenceDb).length;
+    pullStats.sentenceCards = allSentences.filter(r => !r.deleted_at).length;
 
     // ============ GRAMMAR FSRS ============
     let allGFsrs = []; offset = 0;
@@ -598,10 +705,9 @@ async function forcePullAllFromCloud() {
     }
     grammarFsrsPool = {};
     allGFsrs.forEach(row => {
-      if (row.deleted_at) return;
       grammarFsrsPool[row.pattern_id] = cloudGrammarFsrsToItem(row);
     });
-    pullStats.grammarFsrs = Object.keys(grammarFsrsPool).length;
+    pullStats.grammarFsrs = allGFsrs.filter(r => !r.deleted_at && !r.deleted).length;
 
     // ============ SENTENCE FSRS ============
     let allSFsrs = []; offset = 0;
@@ -615,16 +721,16 @@ async function forcePullAllFromCloud() {
     }
     sentenceFsrsPool = {};
     allSFsrs.forEach(row => {
-      if (row.deleted_at) return;
       sentenceFsrsPool[row.sentence_id] = cloudSentenceFsrsToItem(row);
     });
-    pullStats.sentenceFsrs = Object.keys(sentenceFsrsPool).length;
+    pullStats.sentenceFsrs = allSFsrs.filter(r => !r.deleted_at && !r.deleted).length;
 
     // ============ REBUILD INDEX & SAVE ============
     rebuildGrammarIndex();
 
-    if (!docs.find(d => d.id === activeDocId)) {
-      activeDocId = docs.length > 0 ? docs[0].id : null;
+    const aliveDocList = aliveDocs();
+    if (!aliveDocList.find(d => d.id === activeDocId)) {
+      activeDocId = aliveDocList.length > 0 ? aliveDocList[0].id : null;
     }
 
     lastSyncedAt = Date.now();
@@ -672,6 +778,12 @@ async function syncWithSupabase() {
   btn.disabled = true;
 
   try {
+    // Đảm bảo mọi item đều có updatedAt trước khi so sánh delta.
+    // Nhờ vậy ta BỎ ĐƯỢC nhánh `|| !updatedAt` trong filter — tránh
+    // trường hợp item vừa tạo ở máy B (chưa có ts) bị push đè lên
+    // tombstone của máy A.
+    backfillTimestampsForSync();
+
     const syncStartTime = Date.now();
     const lastSyncIso = new Date(lastSyncedAt).toISOString();
     let maxCloudTimestamp = lastSyncedAt;
@@ -682,7 +794,7 @@ async function syncWithSupabase() {
     // ============ FOLDERS ============
     {
       const localChanges = folders
-        .filter(f => (f.updatedAt || 0) > lastSyncedAt || !f.updatedAt)
+        .filter(f => (f.updatedAt || 0) > lastSyncedAt)
         .map(f => {
           f.updatedAt = ensureTs(f.updatedAt);
           return {
@@ -704,11 +816,18 @@ async function syncWithSupabase() {
         const existing = folders.find(f => f.id === row.id);
         const lTime = existing?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) folders = folders.filter(f => f.id !== row.id);
-          else {
-            const updated = { id: row.id, name: row.name, createdAt: row.created_at, updatedAt: cTime };
-            if (existing) Object.assign(existing, updated);
-            else folders.push(updated);
+          const cloudDeletedAt = row.deleted_at ? new Date(row.deleted_at).getTime() : null;
+          if (existing) {
+            // soft-delete: cập nhật tại chỗ, KHÔNG filter khỏi mảng
+            existing.name = row.name;
+            existing.createdAt = row.created_at;
+            existing.updatedAt = cTime;
+            existing.deletedAt = cloudDeletedAt;
+          } else {
+            folders.push({
+              id: row.id, name: row.name, createdAt: row.created_at,
+              updatedAt: cTime, deletedAt: cloudDeletedAt
+            });
           }
           pullCount++;
         }
@@ -718,7 +837,7 @@ async function syncWithSupabase() {
     // ============ VOCAB ============
     {
       const localChanges = Object.entries(vocabDb)
-        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt || !item.updatedAt)
+        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt)
         .map(([word, item]) => {
           item.updatedAt = ensureTs(item.updatedAt);
           return {
@@ -739,15 +858,25 @@ async function syncWithSupabase() {
       (cloudRows || []).forEach(row => {
         const cTime = new Date(row.updated_at).getTime();
         if (cTime > maxCloudTimestamp) maxCloudTimestamp = cTime;
-        const lTime = vocabDb[row.id]?.updatedAt || 0;
+        const existing = vocabDb[row.id];
+        const lTime = existing?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) delete vocabDb[row.id];
-          else {
+          const cloudDeletedAt = row.deleted_at ? new Date(row.deleted_at).getTime() : null;
+          if (existing) {
+            existing.ipa = row.ipa || row.pinyin || '';
+            existing.pos = row.pos || '';
+            existing.meaning = row.meaning || '';
+            existing.logic = row.logic || '';
+            existing.examples = row.examples || [];
+            existing.level = row.level_cefr || '';
+            existing.updatedAt = cTime;
+            existing.deletedAt = cloudDeletedAt;
+          } else {
             vocabDb[row.id] = {
               ipa: row.ipa || row.pinyin || '', pos: row.pos || '',
               meaning: row.meaning || '', logic: row.logic || '',
               examples: row.examples || [], level: row.level_cefr || '',
-              updatedAt: cTime
+              updatedAt: cTime, deletedAt: cloudDeletedAt
             };
           }
           pullCount++;
@@ -758,7 +887,7 @@ async function syncWithSupabase() {
     // ============ DOCS ============
     {
       const localChanges = docs
-        .filter(d => (d.updatedAt || 0) > lastSyncedAt || !d.updatedAt)
+        .filter(d => (d.updatedAt || 0) > lastSyncedAt)
         .map(d => {
           d.updatedAt = ensureTs(d.updatedAt);
           return {
@@ -782,16 +911,23 @@ async function syncWithSupabase() {
         const existing = docs.find(d => d.id === row.id);
         const lTime = existing?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) docs = docs.filter(d => d.id !== row.id);
-          else {
-            const updated = {
+          const cloudDeletedAt = row.deleted_at ? new Date(row.deleted_at).getTime() : null;
+          if (existing) {
+            existing.title = row.title;
+            existing.content = row.content;
+            existing.folderId = row.folder_id;
+            existing.hidden = row.hidden;
+            existing.testStatus = row.test_status;
+            existing.updatedAt = cTime;
+            existing.deletedAt = cloudDeletedAt;
+          } else {
+            docs.push({
               id: row.id, title: row.title, content: row.content,
               folderId: row.folder_id, hidden: row.hidden,
               testStatus: row.test_status,
-              updatedAt: cTime, createdAt: row.created_at
-            };
-            if (existing) Object.assign(existing, updated);
-            else docs.push(updated);
+              updatedAt: cTime, createdAt: row.created_at,
+              deletedAt: cloudDeletedAt
+            });
           }
           pullCount++;
         }
@@ -806,14 +942,17 @@ async function syncWithSupabase() {
         const fsrs = fsrsPool.vocab[k];
         let statTime = statusTimestamps.vocab?.[k] || 0;
         let fsrsTime = fsrs?.updatedAt || 0;
-        if (statTime <= 1 && statusDb.vocab[k]) statTime = statusTimestamps.vocab[k] = syncStartTime;
+        if (statTime <= 1 && statusDb.vocab[k] !== undefined) statTime = statusTimestamps.vocab[k] = syncStartTime;
         if (fsrsTime <= 1 && fsrs) fsrsTime = fsrs.updatedAt = syncStartTime;
         const maxTime = Math.max(statTime, fsrsTime);
         if (maxTime > lastSyncedAt) {
           const isFsrs = fsrs && !fsrs.deleted;
+          const statVal = statusDb.vocab[k];
+          // Nếu status = 0 (đã bị xóa) hoặc fsrs.deleted → coi như tombstone
+          const isDeleted = (statVal === 0) || (fsrs && fsrs.deleted);
           progressChanges.push({
             user_id: userId, item_type: 'vocab', item_key: k,
-            level: statusDb.vocab[k] || 1,
+            level: statVal === undefined ? 1 : statVal,
             streak: isFsrs ? (fsrs.streak || 0) : 0,
             interval: isFsrs ? (fsrs.interval || 1) : 1,
             next_review: (isFsrs && fsrs.nextReview > 1000000) ? new Date(fsrs.nextReview).toISOString() : null,
@@ -821,7 +960,7 @@ async function syncWithSupabase() {
             used_sentences: isFsrs ? (fsrs.usedSentences || []) : [],
             rank: isFsrs ? (fsrs.rank || 9999) : 9999,
             updated_at: new Date(maxTime).toISOString(),
-            deleted_at: fsrs?.deleted ? new Date(fsrs.deletedAt || maxTime).toISOString() : null
+            deleted_at: isDeleted ? new Date(fsrs?.deletedAt || maxTime).toISOString() : null
           });
         }
       });
@@ -840,18 +979,36 @@ async function syncWithSupabase() {
         if (!fsrsPool[type]) fsrsPool[type] = {};
         const lTime = Math.max(statusTimestamps[type]?.[key] || 0, fsrsPool[type]?.[key]?.updatedAt || 0);
         if (cTime > lTime) {
-          statusDb[type][key] = row.level;
+          const isDeleted = !!row.deleted_at;
+          statusDb[type][key] = isDeleted ? 0 : (row.level === undefined ? 1 : row.level);
           statusTimestamps[type][key] = cTime;
-          if (row.deleted_at) delete fsrsPool[type][key];
-          else if (row.next_review) {
+          if (isDeleted) {
+            const ex = fsrsPool[type][key];
+            if (ex) {
+              ex.deleted = true;
+              ex.deletedAt = cTime;
+              ex.updatedAt = cTime;
+            } else {
+              fsrsPool[type][key] = { deleted: true, deletedAt: cTime, updatedAt: cTime };
+            }
+          } else if (row.next_review) {
             fsrsPool[type][key] = {
               streak: row.streak, interval: row.interval,
               nextReview: new Date(row.next_review).getTime(),
               lastReview: row.last_review ? new Date(row.last_review).getTime() : 0,
               usedSentences: row.used_sentences || [],
-              rank: row.rank, updatedAt: cTime
+              rank: row.rank, updatedAt: cTime,
+              deleted: false, deletedAt: 0
             };
-          } else delete fsrsPool[type][key];
+          } else {
+            // có status nhưng chưa có fsrs — xóa fsrs cũ nếu còn
+            const ex = fsrsPool[type][key];
+            if (ex && !ex.deleted) {
+              ex.deleted = true;
+              ex.deletedAt = cTime;
+              ex.updatedAt = cTime;
+            }
+          }
           pullCount++;
         }
       });
@@ -863,14 +1020,16 @@ async function syncWithSupabase() {
       const localChanges = Object.entries(grammarDb._aliasGroups || {})
         .filter(([name]) => {
           const ts = grammarDb._aliasGroupTimestamps[name] || 0;
-          return ts > lastSyncedAt || !ts;
+          return ts > lastSyncedAt;
         })
         .map(([name, tokens]) => {
           grammarDb._aliasGroupTimestamps[name] = ensureTs(grammarDb._aliasGroupTimestamps[name]);
+          const isDeleted = tokens === null;
           return {
-            name: name, user_id: userId, tokens: tokens || [],
+            name: name, user_id: userId,
+            tokens: isDeleted ? [] : (tokens || []),
             updated_at: new Date(grammarDb._aliasGroupTimestamps[name]).toISOString(),
-            deleted_at: null
+            deleted_at: isDeleted ? new Date(grammarDb._aliasGroupTimestamps[name]).toISOString() : null
           };
         });
       if (localChanges.length > 0) {
@@ -885,12 +1044,12 @@ async function syncWithSupabase() {
         const lTime = grammarDb._aliasGroupTimestamps[row.name] || 0;
         if (cTime > lTime) {
           if (row.deleted_at) {
-            delete grammarDb._aliasGroups[row.name];
-            delete grammarDb._aliasGroupTimestamps[row.name];
+            // tombstone: giữ key với giá trị null
+            grammarDb._aliasGroups[row.name] = null;
           } else {
             grammarDb._aliasGroups[row.name] = row.tokens || [];
-            grammarDb._aliasGroupTimestamps[row.name] = cTime;
           }
+          grammarDb._aliasGroupTimestamps[row.name] = cTime;
           pullCount++;
         }
       });
@@ -899,7 +1058,7 @@ async function syncWithSupabase() {
     // ============ GRAMMAR PATTERNS ============
     {
       const localChanges = Object.entries(grammarDb._patterns || {})
-        .filter(([_, p]) => (p.updatedAt || 0) > lastSyncedAt || !p.updatedAt)
+        .filter(([_, p]) => (p.updatedAt || 0) > lastSyncedAt)
         .map(([id, p]) => {
           p.updatedAt = ensureTs(p.updatedAt);
           const cloud = grammarPatternToCloud(id, p);
@@ -918,8 +1077,7 @@ async function syncWithSupabase() {
         const existing = grammarDb._patterns[row.id];
         const lTime = existing?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) delete grammarDb._patterns[row.id];
-          else grammarDb._patterns[row.id] = cloudGrammarToPattern(row);
+          grammarDb._patterns[row.id] = cloudGrammarToPattern(row);
           pullCount++;
         }
       });
@@ -928,7 +1086,7 @@ async function syncWithSupabase() {
     // ============ SENTENCE CARDS ============
     {
       const localChanges = Object.entries(sentenceDb || {})
-        .filter(([_, s]) => (s.updatedAt || 0) > lastSyncedAt || !s.updatedAt)
+        .filter(([_, s]) => (s.updatedAt || 0) > lastSyncedAt)
         .map(([id, s]) => {
           s.updatedAt = ensureTs(s.updatedAt);
           const cloud = sentenceCardToCloud(id, s);
@@ -947,8 +1105,7 @@ async function syncWithSupabase() {
         const existing = sentenceDb[row.id];
         const lTime = existing?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) delete sentenceDb[row.id];
-          else sentenceDb[row.id] = cloudSentenceToCard(row);
+          sentenceDb[row.id] = cloudSentenceToCard(row);
           pullCount++;
         }
       });
@@ -957,7 +1114,7 @@ async function syncWithSupabase() {
     // ============ GRAMMAR FSRS ============
     {
       const localChanges = Object.entries(grammarFsrsPool || {})
-        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt || !item.updatedAt)
+        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt)
         .map(([pid, item]) => {
           item.updatedAt = ensureTs(item.updatedAt);
           const cloud = grammarFsrsToCloud(pid, item);
@@ -975,8 +1132,7 @@ async function syncWithSupabase() {
         if (cTime > maxCloudTimestamp) maxCloudTimestamp = cTime;
         const lTime = grammarFsrsPool[row.pattern_id]?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) delete grammarFsrsPool[row.pattern_id];
-          else grammarFsrsPool[row.pattern_id] = cloudGrammarFsrsToItem(row);
+          grammarFsrsPool[row.pattern_id] = cloudGrammarFsrsToItem(row);
           pullCount++;
         }
       });
@@ -985,7 +1141,7 @@ async function syncWithSupabase() {
     // ============ SENTENCE FSRS ============
     {
       const localChanges = Object.entries(sentenceFsrsPool || {})
-        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt || !item.updatedAt)
+        .filter(([_, item]) => (item.updatedAt || 0) > lastSyncedAt)
         .map(([sid, item]) => {
           item.updatedAt = ensureTs(item.updatedAt);
           const cloud = sentenceFsrsToCloud(sid, item);
@@ -1003,8 +1159,7 @@ async function syncWithSupabase() {
         if (cTime > maxCloudTimestamp) maxCloudTimestamp = cTime;
         const lTime = sentenceFsrsPool[row.sentence_id]?.updatedAt || 0;
         if (cTime > lTime) {
-          if (row.deleted_at) delete sentenceFsrsPool[row.sentence_id];
-          else sentenceFsrsPool[row.sentence_id] = cloudSentenceFsrsToItem(row);
+          sentenceFsrsPool[row.sentence_id] = cloudSentenceFsrsToItem(row);
           pullCount++;
         }
       });
@@ -1012,6 +1167,11 @@ async function syncWithSupabase() {
 
     // ============ REBUILD INDEX & SAVE ============
     rebuildGrammarIndex();
+
+    const aliveDocList = aliveDocs();
+    if (!aliveDocList.find(d => d.id === activeDocId)) {
+      activeDocId = aliveDocList.length > 0 ? aliveDocList[0].id : null;
+    }
 
     lastSyncedAt = maxCloudTimestamp;
     await idbSet('lastSyncedAt', lastSyncedAt);
@@ -1062,13 +1222,14 @@ function switchBackupSubTab(tab) {
 
 // ==================== BACKUP MODAL ====================
 function openBackupModal() {
-  document.getElementById('stat-docs-count').innerText = `${docs.length} bài`;
-  document.getElementById('stat-vocab-count').innerText = `${Object.keys(vocabDb).length} từ`;
-  const totalFsrsCount = Object.keys(fsrsPool.vocab).length + Object.keys(grammarFsrsPool).length + Object.keys(sentenceFsrsPool).length;
+  document.getElementById('stat-docs-count').innerText = `${aliveDocs().length} bài`;
+  document.getElementById('stat-vocab-count').innerText = `${aliveVocabEntries().length} từ`;
+  const totalFsrsCount = aliveVocabFsrsEntries().length + aliveGrammarFsrsEntries().length + aliveSentenceFsrsEntries().length;
   document.getElementById('stat-fsrs-count').innerText = `${totalFsrsCount} mục`;
-  const totalKnown = Object.values(statusDb.vocab || {}).length;
+  // Đếm status thực sự có level > 0
+  const totalKnown = Object.values(statusDb.vocab || {}).filter(v => v > 0).length;
   document.getElementById('stat-status-count').innerText = `${totalKnown} mục`;
-  const grammarPatternCount = Object.keys(grammarDb._patterns || {}).length;
+  const grammarPatternCount = aliveGrammarEntries().length;
   const statGrammarElem = document.getElementById('stat-grammar-count');
   if (statGrammarElem) statGrammarElem.innerText = `${grammarPatternCount} cấu trúc`;
   openModal('modal-backup-restore');
@@ -1077,7 +1238,7 @@ function openBackupModal() {
 
 function exportFullBackup() {
   const fullBackup = {
-    appName: "EnglishRead", version: 1, exportedAt: new Date().toISOString(),
+    appName: "EnglishRead", version: 2, exportedAt: new Date().toISOString(),
     docs, folders, vocabDb, statusDb, statusTimestamps,
     fsrsPool, grammarFsrsPool, sentenceFsrsPool, fsrsConfig,
     activeDocId, showPinyinRuby, readerFontSize, highlightMode,
@@ -1115,16 +1276,25 @@ function handleRestoreFile(event) {
 
       const now = Date.now();
       if (Array.isArray(parsed.docs)) {
-        docs = parsed.docs;
-        docs.forEach(d => { d.updatedAt = now; });
+        docs = parsed.docs.map(d => ({
+          ...d,
+          updatedAt: now,
+          deletedAt: d.deletedAt || null
+        }));
       }
       if (Array.isArray(parsed.folders)) {
-        folders = parsed.folders;
-        folders.forEach(f => { f.updatedAt = now; });
+        folders = parsed.folders.map(f => ({
+          ...f,
+          updatedAt: now,
+          deletedAt: f.deletedAt || null
+        }));
       }
       if (parsed.vocabDb && typeof parsed.vocabDb === 'object') {
-        vocabDb = parsed.vocabDb;
-        Object.keys(vocabDb).forEach(k => { vocabDb[k].updatedAt = now; });
+        vocabDb = {};
+        Object.keys(parsed.vocabDb).forEach(k => {
+          const v = parsed.vocabDb[k] || {};
+          vocabDb[k] = { ...v, updatedAt: now, deletedAt: v.deletedAt || null };
+        });
       }
       if (parsed.statusDb && typeof parsed.statusDb === 'object') {
         statusDb = { vocab: parsed.statusDb.vocab || {} };
@@ -1135,17 +1305,32 @@ function handleRestoreFile(event) {
       if (parsed.fsrsPool && typeof parsed.fsrsPool === 'object') {
         fsrsPool = parsed.fsrsPool;
         if (!fsrsPool.vocab) fsrsPool.vocab = {};
-        Object.keys(fsrsPool.vocab).forEach(k => { fsrsPool.vocab[k].updatedAt = now; });
+        Object.keys(fsrsPool.vocab).forEach(k => {
+          const item = fsrsPool.vocab[k] || {};
+          item.updatedAt = now;
+          if (item.deleted === undefined) item.deleted = false;
+          if (item.deletedAt === undefined) item.deletedAt = 0;
+        });
       }
       if (parsed.grammarFsrsPool && typeof parsed.grammarFsrsPool === 'object') {
         grammarFsrsPool = parsed.grammarFsrsPool;
-        Object.keys(grammarFsrsPool).forEach(k => { grammarFsrsPool[k].updatedAt = now; });
+        Object.keys(grammarFsrsPool).forEach(k => {
+          const item = grammarFsrsPool[k] || {};
+          item.updatedAt = now;
+          if (item.deleted === undefined) item.deleted = false;
+          if (item.deletedAt === undefined) item.deletedAt = 0;
+        });
       } else {
         grammarFsrsPool = {};
       }
       if (parsed.sentenceFsrsPool && typeof parsed.sentenceFsrsPool === 'object') {
         sentenceFsrsPool = parsed.sentenceFsrsPool;
-        Object.keys(sentenceFsrsPool).forEach(k => { sentenceFsrsPool[k].updatedAt = now; });
+        Object.keys(sentenceFsrsPool).forEach(k => {
+          const item = sentenceFsrsPool[k] || {};
+          item.updatedAt = now;
+          if (item.deleted === undefined) item.deleted = false;
+          if (item.deletedAt === undefined) item.deletedAt = 0;
+        });
       } else {
         sentenceFsrsPool = {};
       }
@@ -1153,7 +1338,9 @@ function handleRestoreFile(event) {
         grammarDb = normalizeGrammarDb(parsed.grammarDb);
         if (!grammarDb._aliasGroupTimestamps) grammarDb._aliasGroupTimestamps = {};
         Object.keys(grammarDb._patterns || {}).forEach(id => {
-          grammarDb._patterns[id].updatedAt = now;
+          const p = grammarDb._patterns[id] || {};
+          p.updatedAt = now;
+          if (p.deletedAt === undefined) p.deletedAt = null;
         });
         Object.keys(grammarDb._aliasGroups || {}).forEach(name => {
           grammarDb._aliasGroupTimestamps[name] = now;
@@ -1161,9 +1348,10 @@ function handleRestoreFile(event) {
         rebuildGrammarIndex();
       }
       if (parsed.sentenceDb && typeof parsed.sentenceDb === 'object') {
-        sentenceDb = parsed.sentenceDb;
-        Object.keys(sentenceDb).forEach(id => {
-          sentenceDb[id].updatedAt = now;
+        sentenceDb = {};
+        Object.keys(parsed.sentenceDb).forEach(id => {
+          const s = parsed.sentenceDb[id] || {};
+          sentenceDb[id] = { ...s, updatedAt: now, deletedAt: s.deletedAt || null };
         });
       } else {
         sentenceDb = {};
@@ -1172,11 +1360,14 @@ function handleRestoreFile(event) {
         fsrsConfig = { ...DEFAULT_FSRS_CONFIG, ...parsed.fsrsConfig };
         if (fsrsConfig.fsrsSteps === undefined) fsrsConfig.fsrsSteps = 4;
       }
-      if (parsed.activeDocId && docs.some(d => d.id === parsed.activeDocId)) {
+
+      const aliveDocList = aliveDocs();
+      if (parsed.activeDocId && aliveDocList.some(d => d.id === parsed.activeDocId)) {
         activeDocId = parsed.activeDocId;
-      } else if (docs.length > 0) {
-        const alive = docs.find(d => !d.deletedAt);
-        if (alive) activeDocId = alive.id;
+      } else if (aliveDocList.length > 0) {
+        activeDocId = aliveDocList[0].id;
+      } else {
+        activeDocId = null;
       }
 
       touch();
@@ -1193,7 +1384,7 @@ function handleRestoreFile(event) {
       renderReviewTables();
       updateBadges();
 
-      alert(`✅ Đã nạp thành công:\n• ${docs.length} bài đọc\n• ${Object.keys(vocabDb).length} từ vựng\n• ${Object.keys(fsrsPool.vocab).length} vocab FSRS\n• ${Object.keys(grammarDb._patterns || {}).length} cấu trúc ngữ pháp\n• ${Object.keys(sentenceDb).length} Sentence Card\n• ${Object.keys(grammarFsrsPool).length} grammar FSRS\n• ${Object.keys(sentenceFsrsPool).length} sentence FSRS`);
+      alert(`✅ Đã nạp thành công:\n• ${aliveDocs().length} bài đọc\n• ${aliveVocabEntries().length} từ vựng\n• ${aliveVocabFsrsEntries().length} vocab FSRS\n• ${aliveGrammarEntries().length} cấu trúc ngữ pháp\n• ${aliveSentenceEntries().length} Sentence Card\n• ${aliveGrammarFsrsEntries().length} grammar FSRS\n• ${aliveSentenceFsrsEntries().length} sentence FSRS`);
     } catch (err) {
       console.error("Lỗi nạp file:", err);
       alert("Lỗi đọc file: " + err.message);
@@ -1201,4 +1392,68 @@ function handleRestoreFile(event) {
     event.target.value = '';
   };
   fileReader.readAsText(file);
+}
+
+// ==================== PRUNE TOMBSTONES (tùy chọn) ====================
+// Dọn tombstone cũ hơn TTL. CHỈ chạy khi chắc chắn cloud đã nhận tombstone
+// (tức là đã sync thành công ít nhất 1 lần sau khi tombstone được tạo).
+async function pruneTombstones(ttlDays = 90) {
+  const cutoff = Date.now() - ttlDays * 24 * 60 * 60 * 1000;
+  let removed = 0;
+
+  const beforeDocs = docs.length;
+  docs = docs.filter(d => !(d.deletedAt && d.deletedAt < cutoff));
+  removed += beforeDocs - docs.length;
+
+  const beforeFolders = folders.length;
+  folders = folders.filter(f => !(f.deletedAt && f.deletedAt < cutoff));
+  removed += beforeFolders - folders.length;
+
+  Object.keys(vocabDb).forEach(k => {
+    if (vocabDb[k].deletedAt && vocabDb[k].deletedAt < cutoff) {
+      delete vocabDb[k]; removed++;
+    }
+  });
+  ['vocab'].forEach(type => {
+    Object.keys(fsrsPool[type] || {}).forEach(k => {
+      const item = fsrsPool[type][k];
+      if (item.deleted && item.deletedAt && item.deletedAt < cutoff) {
+        delete fsrsPool[type][k]; removed++;
+      }
+    });
+  });
+  Object.keys(grammarDb._patterns || {}).forEach(id => {
+    if (grammarDb._patterns[id].deletedAt && grammarDb._patterns[id].deletedAt < cutoff) {
+      delete grammarDb._patterns[id]; removed++;
+    }
+  });
+  Object.keys(grammarDb._aliasGroups || {}).forEach(name => {
+    const ts = grammarDb._aliasGroupTimestamps?.[name] || 0;
+    if (grammarDb._aliasGroups[name] === null && ts < cutoff) {
+      delete grammarDb._aliasGroups[name];
+      delete grammarDb._aliasGroupTimestamps[name];
+      removed++;
+    }
+  });
+  Object.keys(sentenceDb || {}).forEach(id => {
+    if (sentenceDb[id].deletedAt && sentenceDb[id].deletedAt < cutoff) {
+      delete sentenceDb[id]; removed++;
+    }
+  });
+  Object.keys(grammarFsrsPool || {}).forEach(pid => {
+    const item = grammarFsrsPool[pid];
+    if (item.deleted && item.deletedAt && item.deletedAt < cutoff) {
+      delete grammarFsrsPool[pid]; removed++;
+    }
+  });
+  Object.keys(sentenceFsrsPool || {}).forEach(sid => {
+    const item = sentenceFsrsPool[sid];
+    if (item.deleted && item.deletedAt && item.deletedAt < cutoff) {
+      delete sentenceFsrsPool[sid]; removed++;
+    }
+  });
+
+  await saveAllData();
+  showToast(`🧹 Đã dọn ${removed} tombstone cũ hơn ${ttlDays} ngày.`, "info");
+  return removed;
 }
