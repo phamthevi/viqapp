@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>EnglishRead - Luyện Đọc Tiếng Anh & Thẩm Định Củng Cố FSRS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EnglishRead">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%23e11d48'/%3E%3Ctext x='96' y='130' font-size='100' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3EEN%3C/text%3E%3C/svg%3E">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            english: ['Merriweather', 'Georgia', 'serif'],
+            englishSans: ['Inter', 'system-ui', 'sans-serif']
+          },
+          colors: {
+            crimson: { 50:'#fff1f2',100:'#ffe4e6',500:'#f43f5e',600:'#e11d48',700:'#be123c',800:'#9f1239',900:'#881337' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .lingq-level-1 { background-color: #fef08a !important; border-bottom: 2px solid #eab308 !important; }
+    .lingq-level-2 { background-color: #fed7aa !important; border-bottom: 2px solid #f97316 !important; }
+    .lingq-level-3 { background-color: #bbf7d0 !important; border-bottom: 2px solid #22c55e !important; }
+    .lingq-level-4 { background-color: transparent !important; border-bottom-color: transparent !important; }
+    .word-unit { display: inline-flex; align-items: baseline; margin: 0.15rem 0.05rem; padding: 0.12rem 0.25rem; border-radius: 0.375rem; transition: all 0.15s ease; cursor: pointer; user-select: none; -webkit-user-select: none; border-bottom: 2px solid transparent; }
+    .word-unit:hover { filter: brightness(0.93); }
+    .char-unit { display: inline-block; padding: 0 0.08rem; border-radius: 0.25rem; transition: background-color 0.12s ease; border-bottom: 2px solid transparent; }
+    .char-unit:hover { filter: brightness(0.88); outline: 1px solid rgba(0,0,0,0.15); }
+    .needs-data { text-decoration: underline wavy #f59e0b 1.5px; }
+    .pressing { transform: scale(0.95); filter: brightness(0.85) !important; transition: transform 0.15s ease; }
+    .in-test-mode .word-unit { border: 1px dashed rgba(0,0,0,0.15); }
+    .test-looked-up { outline: 2px solid #e11d48 !important; background-color: #ffe4e6 !important; }
+    body.zen-active { background-color: #fbfbfa; }
+    body.zen-active #main-app-header, body.zen-active #reader-controls-bar, body.zen-active #test-mode-banner { display: none !important; }
+    body.zen-active main { padding-top: 1.5rem; max-width: 56rem; }
+    body.zen-active #reader-card-wrapper { box-shadow: none !important; border-color: transparent !important; background-color: transparent !important; padding-left: 0.5rem; padding-right: 0.5rem; }
+    #zen-floating-toggle { transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+    #zen-floating-toggle:hover { transform: scale(1.05); }
+    .flip-card { perspective: 1000px; }
+    .flip-card-inner { transition: transform 0.5s; transform-style: preserve-3d; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-card-front, .flip-card-back { 
+      backface-visibility: hidden; 
+      -webkit-backface-visibility: hidden; 
+      touch-action: pan-y;
+    }
+    .flip-card-back { 
+      transform: rotateY(180deg); 
+      overscroll-behavior: contain;
+    }
+    .grammar-unit {
+      display: inline-flex; align-items: baseline; flex-wrap: wrap;
+      padding: 0.1rem 0.35rem; margin: 0 0.05rem;
+      border-radius: 0.5rem;
+      background: rgba(168, 85, 247, 0.10);
+      border-bottom: 2px dashed rgba(168, 85, 247, 0.55);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      position: relative;
+    }
+    .grammar-unit:hover { background: rgba(168, 85, 247, 0.22); border-bottom-color: rgba(168, 85, 247, 0.9); }
+    .grammar-unit .word-unit { margin: 0 0.1rem; padding: 0.05rem 0.15rem; }
+    .grammar-mode-active .word-unit, .grammar-mode-active .char-unit {
+      background-color: transparent !important; border-bottom-color: transparent !important;
+    }
+    
+    .grammar-unit {
+      position: relative;
+    }
+    .grammar-unit[data-pattern-count]:not([data-pattern-count="1"]) {
+      background: linear-gradient(
+        135deg,
+        rgba(168, 85, 247, 0.15) 0%,
+        rgba(168, 85, 247, 0.15) 50%,
+        rgba(99, 102, 241, 0.15) 50%,
+        rgba(99, 102, 241, 0.15) 100%
+      ) !important;
+      border-bottom-style: double !important;
+      border-bottom-width: 3px !important;
+      border-bottom-color: rgba(147, 51, 234, 0.8) !important;
+    }
+    .grammar-count-badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: linear-gradient(135deg, #9333ea, #6366f1);
+      color: white;
+      font-size: 9px;
+      font-weight: 800;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(147, 51, 234, 0.5);
+      pointer-events: none;
+      font-family: 'Inter', sans-serif;
+      line-height: 1;
+    }
+    .grammar-unit::after {
+      content: attr(data-pattern-label);
+      position: absolute; top: -1.5rem; left: 0;
+      background: rgba(88, 28, 135, 0.95); color: #fff;
+      font-size: 10px; font-family: 'Inter', sans-serif;
+      padding: 0.15rem 0.45rem; border-radius: 0.35rem;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transform: translateY(4px);
+      transition: opacity 0.15s, transform 0.15s;
+      z-index: 40; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .grammar-unit:hover::after { opacity: 1; transform: translateY(0); }
+    .word-unit.struct-selected {
+      outline: 2px solid #9333ea !important;
+      background-color: #f3e8ff !important;
+      color: #581c87 !important;
+      font-weight: 800 !important;
+      transform: scale(1.05);
+    }
+        .word-unit.struct-anchored {
+      outline: 2px dashed #9333ea !important;
+      background-color: #f3e8ff !important;
+      color: #581c87 !important;
+      font-weight: 700 !important;
+    }
+    .pagination-bar {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.5rem; flex-wrap: wrap;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #e7e5e4; border-radius: 1rem;
+      margin-bottom: 1rem; backdrop-filter: blur(8px);
+    }
+    .pagination-bar.sticky-pagination { position: sticky; top: 0; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .page-btn {
+      min-width: 2rem; height: 2rem; padding: 0 0.6rem;
+      border-radius: 0.5rem; font-size: 0.75rem; font-weight: 700;
+      border: 1px solid #e7e5e4; background: #fff; color: #57534e;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .page-btn:hover:not(:disabled) { background: #f5f5f4; color: #1c1917; }
+    .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .page-btn.active { background: #e11d48; color: #fff; border-color: #e11d48; box-shadow: 0 2px 6px rgba(225,29,72,0.3); }
+    .page-btn.bookmark-active { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+    #bookmark-floating-btn {
+      position: fixed; right: 1.25rem; bottom: 5rem; z-index: 45;
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 0.9rem;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff; border: none; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 700;
+      box-shadow: 0 6px 16px rgba(217,119,6,0.4);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+      opacity: 0; pointer-events: none; transform: translateY(10px);
+    }
+    #bookmark-floating-btn.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    #bookmark-floating-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 10px 20px rgba(217,119,6,0.5); }
+    #bookmark-floating-btn .bm-label { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .word-unit.bookmark-highlight { animation: bmPulse 2s ease-in-out infinite; }
+    @keyframes bmPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.7); }
+      50% { box-shadow: 0 0 0 6px rgba(245,158,11,0); }
+    }
+    #flashcard-element { touch-action: none; will-change: transform; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
+    body.flashcard-open { overflow: hidden !important; touch-action: none !important; overscroll-behavior: none !important; }
+    #flashcard-element.swiping { transition: none; }
+    #flashcard-element.swipe-left { transform: translateX(-120%) rotate(-20deg); opacity: 0; }
+    #flashcard-element.swipe-right { transform: translateX(120%) rotate(20deg); opacity: 0; }
+    #flashcard-element.swipe-up { transform: translateY(-120%) scale(0.9); opacity: 0; }
+    .swipe-indicator { position: absolute; top: 1.5rem; padding: 0.5rem 1rem; border-radius: 999px; font-weight: 800; font-size: 0.9rem; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.15s ease; pointer-events: none; z-index: 10; }
+    .swipe-indicator.forgot { left: 1.5rem; background: rgba(225, 29, 72, 0.95); color: #fff; border: 2px solid #fecdd3; }
+    .swipe-indicator.known { right: 1.5rem; background: rgba(5, 150, 105, 0.95); color: #fff; border: 2px solid #a7f3d0; }
+    .swipe-indicator.graduate { left: 50%; transform: translateX(-50%); top: 1.5rem; background: rgba(217, 119, 6, 0.95); color: #fff; border: 2px solid #fde68a; }
+    .swipe-hint { position: absolute; bottom: 0.75rem; left: 50%; transform: translateX(-50%); font-size: 10px; color: #a8a29e; background: rgba(255,255,255,0.9); padding: 0.25rem 0.75rem; border-radius: 999px; white-space: nowrap; pointer-events: none; z-index: 5; font-weight: 600; }
+    body {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    .english-article { font-family: 'Merriweather', Georgia, serif; letter-spacing: 0.01em; line-height: 1.8; }
+    .english-article .word-unit { font-family: 'Merriweather', Georgia, serif; }
+        /* Ẩn khung "Ngữ cảnh" khi là Sentence flashcard */
+    #flashcard-element.fc-sentence-mode .fc-sentence-context-box {
+      display: none !important;
+    }
+
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-800 min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- FLOATING BOOKMARK BUTTON -->
+  <button id="bookmark-floating-btn" onclick="jumpToBookmark()" title="Nhảy tới vị trí đánh dấu">
+    <span>📍</span>
+    <span class="bm-label" id="bm-label-text">Bookmark</span>
+    <span onclick="event.stopPropagation(); clearBookmark();" title="Xóa bookmark" class="ml-1 text-white/70 hover:text-white font-bold text-base leading-none px-1">×</span>
+  </button>
+
+    <!-- FLOATING HIGHLIGHT MODE TOGGLE -->
+  <button id="floating-highlight-toggle" 
+          onclick="toggleHighlightMode()"
+          class="fixed top-20 right-5 z-40 bg-white/95 backdrop-blur-md hover:bg-white text-stone-800 shadow-lg border border-stone-200 px-3.5 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95">
+    <span id="floating-hl-icon">📑</span>
+    <span id="floating-hl-text">Từ vựng</span>
+  </button>
+
+  <header id="main-app-header" class="bg-white border-b border-stone-200 sticky top-0 z-30 shadow-sm transition-all duration-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="w-10 h-10 rounded-xl bg-gradient-to-tr from-crimson-800 to-crimson-600 flex items-center justify-center text-white font-sans text-lg font-black shadow-md shadow-crimson-900/20">EN</span>
+        <div>
+          <h1 class="font-bold text-lg text-stone-900 tracking-tight leading-none flex items-center gap-2">
+            EnglishRead
+            <span class="text-xs bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded-full">FSRS 3.0</span>
+          </h1>
+          <p class="text-xs text-stone-500 mt-0.5">Luyện đọc • Thẩm định bài đọc • Củng cố giãn cách</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <nav class="hidden sm:flex items-center bg-stone-100 p-1 rounded-xl text-sm font-medium">
+          <button onclick="switchTab('reader')" id="tab-btn-reader" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 bg-white text-crimson-600 font-bold shadow-sm">📖 Đọc bài</button>
+          <button onclick="switchTab('review')" id="tab-btn-review" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 text-stone-600 hover:text-stone-900 flex items-center gap-1.5">
+            <span>🎯</span> Củng cố FSRS
+            <span id="nav-due-badge" class="hidden px-1.5 py-0.2 text-[10px] bg-crimson-600 text-white font-bold rounded-full">0</span>
+          </button>
+          <button onclick="switchTab('docs')" id="tab-btn-docs" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 text-stone-600 hover:text-stone-900">📚 Tài liệu</button>
+          <button onclick="switchTab('vocab')" id="tab-btn-vocab" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 text-stone-600 hover:text-stone-900">📑 Từ vựng</button>
+          <button onclick="switchTab('grammar')" id="tab-btn-grammar" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 text-stone-600 hover:text-stone-900 flex items-center gap-1.5">🟣 Ngữ pháp<span id="grammar-count-badge-nav" class="text-[10px] px-1.5 py-0.2 bg-stone-200 text-stone-600 rounded-full">0</span></button>
+                 <button onclick="switchTab('sentence')" id="tab-btn-sentence" class="px-3.5 py-1.5 rounded-lg transition-all duration-150 text-stone-600 hover:text-stone-900 flex items-center gap-1.5">📸 Sentence<span id="sentence-count-badge-nav" class="text-[10px] px-1.5 py-0.2 bg-stone-200 text-stone-600 rounded-full">0</span></button>
+        </nav>
+        <button onclick="openBackupModal()" title="Sao lưu hoặc phục hồi dữ liệu" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition">
+          <svg class="w-4 h-4 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+          Sao lưu
+        </button>
+        <input type="file" id="backup-file-input" accept=".json" class="hidden" onchange="handleRestoreFile(event)">
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6 pb-20 sm:pb-6">
+    <section id="view-reader" class="space-y-4">
+      <div id="test-mode-banner" class="hidden bg-gradient-to-r from-stone-900 via-rose-950 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-rose-900/60 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+          <div>
+            <h3 class="text-sm font-bold flex items-center gap-2">
+              <span>🎯 Đang thẩm định bài đọc</span>
+              <span id="test-badge-type" class="text-[10px] bg-rose-500/30 text-rose-200 px-2 py-0.5 rounded-full border border-rose-500/40">Lần đầu</span>
+            </h3>
+            <p class="text-xs text-rose-200/80">Bấm tra cứu các từ chưa nhớ để ghi nhận củng cố.</p>
+          </div>
+        </div>
+        <div class="flex items-center flex-wrap gap-4 text-xs">
+          <div class="bg-black/40 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-3">
+            <div><span class="text-stone-400 block text-[10px] uppercase">Từ tra cứu:</span><span id="test-lookup-words-count" class="font-bold text-amber-300 font-mono text-sm">0</span></div>
+            <div class="border-l border-white/10 pl-3"><span class="text-stone-400 block text-[10px] uppercase">Khuyết thiếu:</span><span id="test-current-ratio" class="font-bold text-rose-400 font-mono text-sm">0.0%</span></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="cancelTestMode()" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition">Hủy</button>
+            <button onclick="submitPartialTest()" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-md transition flex items-center gap-1.5"><span>📝</span> Nộp bài</button>
+            <button onclick="finishTestReading()" class="px-4 py-1.5 rounded-xl bg-crimson-600 hover:bg-crimson-700 text-white font-bold shadow-md transition flex items-center gap-1.5"><span>✔</span> Hoàn thành</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="reader-controls-bar" class="bg-white p-3.5 rounded-2xl border border-stone-200 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-stone-400 uppercase tracking-wider text-[11px]">Bài đọc:</span>
+          <button onclick="openSelectDocModal()" id="btn-open-doc-picker" class="flex items-center gap-2 max-w-[220px] sm:max-w-xs bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-800 text-xs sm:text-sm font-semibold rounded-xl px-3 py-1.5 transition text-left shadow-sm group">
+            <span class="text-crimson-600 text-base">📖</span>
+            <span id="current-doc-btn-title" class="truncate">Chọn bài đọc...</span>
+            <svg class="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-700 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </button>
+          <button onclick="speakCurrentText()" title="Đọc toàn bộ bài" class="p-1.5 rounded-lg hover:bg-stone-100 text-stone-600 hover:text-crimson-600 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+          </button>
+        </div>
+        <div class="flex items-center flex-wrap gap-2">
+          <button onclick="startTestMode()" id="btn-start-test-mode" class="px-3.5 py-1.5 font-bold rounded-xl bg-gradient-to-r from-rose-600 to-crimson-600 hover:from-rose-700 hover:to-crimson-700 text-white shadow-sm transition flex items-center gap-1.5 active:scale-95">
+            <span>🎯</span><span id="btn-start-test-text">Bắt đầu Thẩm định</span>
+          </button>
+          <div class="flex items-center bg-stone-100 rounded-lg p-0.5 border border-stone-200/80">
+            <span class="text-[10px] font-bold text-stone-500 px-2 uppercase">Trang:</span>
+            <input type="number" id="page-size-input" min="200" max="5000" step="100" value="1000" onchange="updatePageSize(this.value)" class="w-16 bg-white border border-stone-200 rounded-md px-1.5 py-0.5 text-xs font-mono font-bold text-center focus:ring-2 focus:ring-crimson-600 focus:outline-none">
+            <span class="text-[10px] font-bold text-stone-500 px-2">từ/trang</span>
+          </div>
+          <div class="flex items-center bg-stone-100 rounded-lg p-0.5 border border-stone-200/80">
+            <button onclick="adjustFontSize(-2)" class="w-7 h-7 flex items-center justify-center font-bold text-stone-600 hover:text-stone-900 hover:bg-white rounded-md transition text-xs">A-</button>
+            <span id="font-size-indicator" class="px-2 font-semibold text-[11px] text-stone-600 select-none min-w-[34px] text-center">24px</span>
+            <button onclick="adjustFontSize(2)" class="w-7 h-7 flex items-center justify-center font-bold text-stone-600 hover:text-stone-900 hover:bg-white rounded-md transition text-xs">A+</button>
+          </div>
+          <button onclick="toggleHighlightMode()" id="btn-toggle-highlight-mode" class="px-3 py-1.5 font-medium rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 transition flex items-center gap-1.5">
+            <span id="highlight-mode-icon">📑</span><span id="highlight-mode-text">Màu: Từ vựng</span>
+          </button>
+         
+          <button onclick="togglePinyinHelper()" id="btn-toggle-pinyin" class="px-3 py-1.5 font-medium rounded-lg border border-stone-200 hover:bg-stone-100 transition">Ẩn/Hiện IPA</button>
+          <button onclick="markAllCurrentDocAsKnown()" class="px-3 py-1.5 font-medium rounded-lg bg-stone-100 hover:bg-emerald-50 hover:text-emerald-700 border border-stone-200 transition">✔ Thuộc cả bài</button>
+          <button onclick="resetCurrentDocToNew()" title="Đánh dấu tất cả từ vựng trong bài này là Mới (trừ mục đang học/sắp thuộc)" class="px-3 py-1.5 font-medium rounded-lg bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border border-yellow-200 transition flex items-center gap-1.5">🔄 Đánh dấu Mới</button>
+          <button onclick="toggleZenMode()" class="px-3 py-1.5 font-semibold rounded-lg bg-stone-900 hover:bg-stone-800 text-white shadow-sm transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+            <span>Ẩn taskbar</span>
+          </button>
+        </div>
+      </div>
+
+      <button id="zen-floating-toggle" onclick="toggleZenMode()" class="fixed top-4 right-5 z-50 bg-stone-900/90 hover:bg-stone-900 text-white backdrop-blur-md px-4 py-2.5 rounded-full shadow-2xl border border-stone-700 text-xs font-semibold items-center gap-2 transition-all opacity-80 hover:opacity-100 hidden">
+        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+        <span>Hiện lại taskbar (ESC)</span>
+      </button>
+
+      <div id="reader-card-wrapper" class="bg-white rounded-2xl border border-stone-200/80 shadow-sm p-6 sm:p-10 min-h-[480px] relative transition-all duration-200">
+        <div id="pagination-bar-top" class="pagination-bar sticky-pagination hidden"></div>
+        <div class="flex items-center justify-between pb-4 mb-6 border-b border-stone-100">
+          <h2 id="reader-title" class="text-xl sm:text-2xl font-bold text-stone-900 font-englishSans flex items-center gap-2.5"><span>Tiêu đề bài đọc</span></h2>
+          <div class="flex items-center gap-2">
+            <span id="doc-test-status-badge" class="hidden text-xs px-2.5 py-1 rounded-full font-bold"></span>
+            <span id="reader-status-tag" class="text-xs font-normal text-stone-400 font-sans"></span>
+          </div>
+        </div>
+        <div id="reader-content" class="english-article leading-loose text-2xl text-stone-800 tracking-wide select-none space-y-4"></div>
+        <div id="reader-empty" class="hidden flex-col items-center justify-center py-20 text-stone-400">
+          <span class="text-5xl mb-3">📄</span>
+          <p class="text-stone-600 font-medium">Chưa có bài đọc nào được chọn</p>
+          <button onclick="openNewDocModal()" class="mt-4 px-4 py-2 bg-crimson-600 text-white rounded-xl text-sm font-medium">Nạp bài đọc</button>
+        </div>
+      </div>
+      <div id="pagination-bar-bottom" class="pagination-bar mt-4 hidden"></div>
+            <!-- FLOATING STRUCTURE TOOLBAR (Luôn bám đáy màn hình) -->
+      <div id="floating-struct-toolbar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900/95 text-white backdrop-blur-md px-4 py-2.5 rounded-full shadow-2xl border border-stone-700 flex items-center gap-3 transition-all duration-200">
+        <button id="btn-toggle-struct-mode" onclick="toggleStructureSelectMode()" class="flex items-center gap-1.5 text-xs font-bold text-amber-300 hover:text-white transition">
+          <span class="text-base">🔗</span>
+          <span id="struct-mode-text">Ghép cấu trúc</span>
+        </button>
+        <div id="struct-action-group" class="hidden items-center gap-2 border-l border-white/20 pl-3">
+          <span id="struct-selected-count" class="text-[11px] font-mono text-purple-200">0 từ</span>
+
+          <!-- NÚT MỚI: Gộp neo -->
+          <button id="btn-group-anchor" onclick="groupSelectedIntoAnchor()" disabled
+                  title="Gộp các từ đang chọn thành 1 neo"
+                  class="px-3 py-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-full font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-1 opacity-40">
+            <span>🔗</span> Gộp neo
+          </button>
+                    <button id="btn-sentence-mining" onclick="saveSentenceMiningQuick()" disabled
+                  title="Tạo Sentence Card từ câu + neo (chống đọc mãi không hiểu)"
+                  class="px-3 py-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white rounded-full font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-1 opacity-40">
+            <span>📸</span> Sentence
+          </button>
+
+          <button id="btn-save-draft" onclick="saveDraftStructureQuick()" disabled
+                  title="Lưu tất cả neo thành cấu trúc chờ AI nạp nghĩa"
+                  class="px-3 py-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-1 opacity-40">
+            <span>⚡</span> Lưu nháp
+          </button>
+
+          <button onclick="clearSelectedStructureTokens()" title="Bỏ chọn các từ đang chờ gộp"
+                  class="text-stone-400 hover:text-white text-xs px-1.5">✕</button>
+          <button onclick="clearAllStructureAnchors()" title="Xóa TẤT CẢ neo đã gộp"
+                  class="text-rose-400 hover:text-rose-200 text-xs px-1.5">🗑️</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-review" class="hidden space-y-5">
+      <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold text-stone-900 flex items-center gap-2"><span>🎯</span> Khu vực Củng cố & Luyện tập FSRS</h2>
+            <span id="review-total-items-badge" class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold">0 mục</span>
+          </div>
+          <p class="text-xs text-stone-500 mt-1">Mỗi mục cần <b id="review-steps-label">4 lần liên tiếp</b> nhớ đúng để tốt nghiệp. <button onclick="openFsrsSettingsModal()" class="text-crimson-600 hover:underline font-semibold">Đổi</button></p>
+        </div>
+        <div class="flex items-center flex-wrap gap-2">
+          <button onclick="openFsrsSettingsModal()" class="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 border border-stone-200"><span>⚙️</span> Cài đặt FSRS</button>
+          <button onclick="startFlashcardReviewSession()" id="btn-start-flashcard-session" class="px-4 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 active:scale-95"><span>🎴</span> Lướt Flashcard</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Cần ôn hôm nay</span><div class="flex items-baseline gap-1.5"><span id="fsrs-stat-due-count" class="text-xl sm:text-2xl font-black text-rose-600">0</span><span class="text-xs text-stone-500">mục</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Từ vựng củng cố</span><div class="flex items-baseline gap-1.5"><span id="fsrs-stat-hanzi-count" class="text-xl sm:text-2xl font-black text-stone-900">0</span><span class="text-xs text-stone-500">từ</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Cụm từ củng cố</span><div class="flex items-baseline gap-1.5"><span id="fsrs-stat-vocab-count" class="text-xl sm:text-2xl font-black text-stone-900">0</span><span class="text-xs text-stone-500">cụm</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Bài đủ điều kiện retest</span><div class="flex items-baseline gap-1.5"><span id="fsrs-stat-ready-docs-count" class="text-xl sm:text-2xl font-black text-emerald-600">0</span><span class="text-xs text-stone-500">bài</span></div></div>
+      </div>
+           <div class="flex border-b border-stone-200 text-xs font-semibold">
+        <button onclick="switchReviewSubTab('hanzi')" id="subtab-review-hanzi" class="py-2.5 px-4 text-crimson-600 border-b-2 border-crimson-600 transition flex items-center gap-1.5 font-bold"><span>📑 Từ đơn</span><span id="badge-subtab-hz" class="px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded-full text-[10px]">0</span></button>
+        <button onclick="switchReviewSubTab('vocab')" id="subtab-review-vocab" class="py-2.5 px-4 text-stone-500 hover:text-stone-800 border-b-2 border-transparent transition flex items-center gap-1.5"><span>💬 Cụm từ</span><span id="badge-subtab-vc" class="px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded-full text-[10px]">0</span></button>
+        <button onclick="switchReviewSubTab('grammar')" id="subtab-review-grammar" class="py-2.5 px-4 text-stone-500 hover:text-stone-800 border-b-2 border-transparent transition flex items-center gap-1.5"><span>🟣 Ngữ pháp</span><span id="badge-subtab-gm" class="px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded-full text-[10px]">0</span></button>
+                <button onclick="switchReviewSubTab('sentence')" id="subtab-review-sentence" class="py-2.5 px-4 text-stone-500 hover:text-stone-800 border-b-2 border-transparent transition flex items-center gap-1.5"><span>📸 Câu</span><span id="badge-subtab-sn" class="px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded-full text-[10px]">0</span></button>
+        <button onclick="switchReviewSubTab('docs')" id="subtab-review-docs" class="py-2.5 px-4 text-stone-500 hover:text-stone-800 border-b-2 border-transparent transition flex items-center gap-1.5"><span>📚 Tái thẩm định</span><span id="badge-subtab-docs" class="px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded-full text-[10px]">0</span></button>
+      </div>
+      <div id="review-subcontent-hanzi" class="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[480px]"><table class="w-full text-left text-sm"><thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10"><tr><th class="px-4 py-3 text-center w-16">Rank</th><th class="px-4 py-3">Từ đơn</th><th class="px-4 py-3">Tiến độ</th><th class="px-4 py-3">Trạng thái</th><th class="px-4 py-3">Lần ôn kế</th><th class="px-4 py-3 text-right">Thao tác</th></tr></thead><tbody id="review-hanzi-table-body" class="divide-y divide-stone-100"></tbody></table></div>
+      </div>
+      <div id="review-subcontent-vocab" class="hidden bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[480px]"><table class="w-full text-left text-sm"><thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10"><tr><th class="px-4 py-3 text-center w-16">Rank</th><th class="px-4 py-3">Cụm từ</th><th class="px-4 py-3">Tiến độ</th><th class="px-4 py-3">Trạng thái</th><th class="px-4 py-3">Lần ôn kế</th><th class="px-4 py-3 text-right">Thao tác</th></tr></thead><tbody id="review-vocab-table-body" class="divide-y divide-stone-100"></tbody></table></div>
+      </div>
+      <div id="review-subcontent-grammar" class="hidden bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden"></div>
+            <div id="review-subcontent-grammar" class="hidden bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden"></div>
+      <div id="review-subcontent-sentence" class="hidden bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[480px]">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10">
+              <tr>
+                <th class="px-4 py-3">Câu</th>
+                <th class="px-4 py-3">Neo</th>
+                <th class="px-4 py-3">Tiến độ</th>
+                <th class="px-4 py-3">Trạng thái</th>
+                <th class="px-4 py-3">Lần ôn kế</th>
+                <th class="px-4 py-3 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="review-sentence-table-body" class="divide-y divide-stone-100"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="review-subcontent-docs" class="hidden space-y-3"><div id="ready-retest-docs-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div></div>
+      <div id="review-subcontent-docs" class="hidden space-y-3"><div id="ready-retest-docs-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div></div>
+    </section>
+
+    <section id="view-docs" class="hidden space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm">
+        <div>
+          <h2 class="text-base font-bold text-stone-900 flex items-center gap-2"><span>📁</span> Quản lý Thư mục & Bài đọc</h2>
+          <p class="text-xs text-stone-500">Tổ chức bài đọc theo thư mục phân cấp.</p>
+        </div>
+        <div class="flex items-center flex-wrap gap-2.5">
+          <button onclick="copySegmentationPrompt()" class="bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-amber-200">📋 Prompt chuẩn hóa</button>
+          <button onclick="openFolderTreeModal()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-stone-200">↕️ Xem dạng dọc</button>
+          <label class="text-xs text-stone-600 flex items-center gap-1.5 cursor-pointer select-none bg-stone-50 hover:bg-stone-100 px-3 py-2 rounded-xl border border-stone-200">
+            <input type="checkbox" id="show-hidden-docs" onchange="renderDocList()" class="rounded text-crimson-600"> Hiện bài ẩn
+          </label>
+          <button onclick="openFolderEditorModal()" class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold px-3.5 py-2 rounded-xl transition border border-stone-200">📁 + Thư mục</button>
+          <button onclick="openImportModal('grammar')" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-sm transition">🟣 Nạp Ngữ pháp</button>
+          <button onclick="openNewDocModal()" class="bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-sm transition">📄 + Bài đọc</button>
+        </div>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center flex-wrap gap-1.5" id="folder-breadcrumbs-container"></div>
+        <div class="text-stone-400 font-medium" id="doc-folder-stats-summary"></div>
+      </div>
+      <div id="folders-grid-container" class="space-y-2"></div>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 id="current-folder-view-title" class="text-xs font-bold uppercase tracking-wider text-stone-500">Danh sách bài đọc</h3>
+          <span id="current-folder-file-count" class="text-xs text-stone-400 font-medium"></span>
+        </div>
+        <div id="doc-list-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+    </section>
+
+    <section id="view-vocab" class="hidden space-y-5">
+      <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold text-stone-900">Dữ liệu Từ vựng & Xếp hạng Tần suất</h2>
+            <span id="vocab-count-badge" class="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-medium">0 từ</span>
+          </div>
+          <p class="text-xs text-stone-500 mt-1">Đếm số lần xuất hiện lặp lại, xếp hạng rank</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openRankExportModal('vocab')" class="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-xl shadow-sm transition">Trích xuất Rank</button>
+          <button onclick="openScanModal('vocab')" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition">Quét từ & Prompt AI</button>
+          <button onclick="markAllAsNew('vocab')" title="Đánh dấu toàn bộ từ vựng là Mới (level 1), trừ những từ đang học (2) và sắp thuộc (3)" class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold rounded-xl transition">🔄 Đánh dấu tất cả Mới</button>
+          <button onclick="openImportModal('vocab')" class="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl transition">📥 Nhập JSON</button>
+          <button onclick="openAddVocabModal()" class="px-3 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl transition">+ Thêm từ</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Tổng lượt từ</span><div class="flex items-baseline gap-1.5"><span id="vc-stat-total-tokens" class="text-xl sm:text-2xl font-black text-stone-900">0</span><span class="text-xs text-stone-500">lượt</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Từ phân biệt</span><div class="flex items-baseline gap-1.5"><span id="vc-stat-unique-count" class="text-xl sm:text-2xl font-black text-crimson-600">0</span><span class="text-xs text-stone-500">từ</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Từ đã biết</span><div class="flex items-baseline gap-1.5"><span id="vc-stat-known-count" class="text-xl sm:text-2xl font-black text-emerald-600">0</span><span class="text-xs text-stone-500">từ</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Đang hiển thị</span><div class="flex items-baseline gap-1.5"><span id="vc-stat-display-count" class="text-xl sm:text-2xl font-black text-amber-600">0</span><span class="text-xs text-stone-500">từ</span></div></div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex-1 min-w-[240px]"><input type="text" id="vocab-search-input" oninput="renderVocabTable()" placeholder="Tìm từ, IPA, nghĩa hoặc #1..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-crimson-600"></div>
+          <div class="flex items-center flex-wrap gap-2">
+            <label class="text-xs text-stone-600 flex items-center gap-1.5 cursor-pointer bg-stone-50 hover:bg-stone-100 px-3 py-2 rounded-xl border border-stone-200 select-none">
+              <input type="checkbox" id="vc-include-hidden-stats" checked onchange="toggleIncludeHiddenStats(this.checked)" class="rounded text-crimson-600"> Thống kê cả bài ẩn
+            </label>
+            <button onclick="toggleHideKnown('vocab')" id="btn-vc-hide-known" class="px-3.5 py-2 text-xs font-bold rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 transition flex items-center gap-1.5"><span id="vc-hide-known-icon">👁️</span><span id="vc-hide-known-text">Ẩn mục Đã biết</span></button>
+            <button onclick="resetRankView('vocab')" class="px-3 py-2 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition">Hiện tất cả Rank</button>
+          </div>
+        </div>
+        <div class="pt-2 border-t border-stone-100 flex flex-wrap sm:flex-nowrap items-center gap-3">
+          <label class="text-xs font-bold text-stone-600 flex items-center gap-1.5 whitespace-nowrap"><span>🎚️ Kéo xem Rank thấp hơn:</span></label>
+          <input type="range" id="vc-rank-slider" min="1" max="100" value="1" oninput="handleRankSlider('vocab', this.value)" class="flex-1 h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-crimson-600">
+          <span id="vc-rank-range-display" class="text-xs font-mono font-bold text-crimson-700 bg-crimson-50 px-2.5 py-1 rounded-lg border border-crimson-200 whitespace-nowrap min-w-[125px] text-center">Rank #1 - #50</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden flex flex-col">
+        <div id="vc-table-scroll-container" onscroll="handleTableScroll('vocab')" class="overflow-x-auto max-h-[520px]">
+          <table class="w-full text-left text-sm"><thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10"><tr><th class="px-4 py-3 text-center w-20">Xếp hạng</th><th class="px-4 py-3">Từ vựng</th><th class="px-4 py-3">Tần suất</th><th class="px-4 py-3">IPA</th><th class="px-4 py-3">Ý nghĩa</th><th class="px-4 py-3">Từ nguyên</th><th class="px-4 py-3">LingQ</th><th class="px-4 py-3 text-right">Thao tác</th></tr></thead><tbody id="vocab-table-body" class="divide-y divide-stone-100"></tbody></table>
+        </div>
+        <div id="vc-pagination-bar" class="p-3 bg-stone-50 border-t border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-600">
+          <div class="flex items-center gap-2"><span id="vc-pagination-info" class="font-medium text-stone-700">Đang hiển thị: 0 / 0 từ</span></div>
+          <div class="flex items-center gap-2">
+            <button onclick="loadMoreItems('vocab')" id="btn-vc-load-more" class="px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-700 font-semibold rounded-lg border border-stone-200 shadow-xs transition">⬇️ Tải thêm 50 từ</button>
+            <button onclick="toggleLoadAll('vocab')" id="btn-vc-toggle-all" class="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded-lg shadow-xs transition">⚡ Tải toàn bộ</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-grammar" class="hidden space-y-5">
+      <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold text-stone-900">Dữ liệu Ngữ pháp & Cấu trúc</h2>
+            <span id="grammar-count-badge" class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">0 cấu trúc</span>
+          </div>
+          <p class="text-xs text-stone-500 mt-1">Phân loại: pair (cặp liên từ) · single (neo đơn) · chain (nhiều neo)</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openScanModal('grammar')" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition">Quét ngữ pháp & Prompt AI</button>
+          <button onclick="copyGrammarGuidePrompt()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl shadow-sm transition">📋 Prompt hướng dẫn định dạng</button>
+          <button onclick="openImportModal('grammar')" class="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl transition">📥 Nhập JSON</button>
+          <button onclick="openAddGrammarModal()" class="px-3 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl transition">+ Thêm cấu trúc</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Tổng cấu trúc</span><div class="flex items-baseline gap-1.5"><span id="gm-stat-total" class="text-xl sm:text-2xl font-black text-stone-900">0</span><span class="text-xs text-stone-500">cấu trúc</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Pair</span><div class="flex items-baseline gap-1.5"><span id="gm-stat-pair" class="text-xl sm:text-2xl font-black text-purple-600">0</span><span class="text-xs text-stone-500">cặp</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Single</span><div class="flex items-baseline gap-1.5"><span id="gm-stat-single" class="text-xl sm:text-2xl font-black text-blue-600">0</span><span class="text-xs text-stone-500">neo</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Chain</span><div class="flex items-baseline gap-1.5"><span id="gm-stat-chain" class="text-xl sm:text-2xl font-black text-amber-600">0</span><span class="text-xs text-stone-500">chuỗi</span></div></div>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex-1 min-w-[240px]"><input type="text" id="grammar-search-input" oninput="renderGrammarTable()" placeholder="Tìm ID, nghĩa, CEFR, hoặc neo..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600"></div>
+          <div class="flex items-center flex-wrap gap-2">
+            <select id="grammar-type-filter" onchange="renderGrammarTable()" class="text-xs bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 font-semibold">
+              <option value="all">Tất cả loại</option>
+              <option value="pair">Pair (cặp)</option>
+              <option value="single">Single (neo đơn)</option>
+              <option value="chain">Chain (chuỗi)</option>
+            </select>
+            <select id="grammar-level-filter" onchange="renderGrammarTable()" class="text-xs bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 font-semibold">
+              <option value="all">Tất cả CEFR</option>
+              <option value="A1">A1</option>
+              <option value="A2">A2</option>
+              <option value="B1">B1</option>
+              <option value="B2">B2</option>
+              <option value="C1">C1</option>
+              <option value="C2">C2</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[520px]">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10">
+              <tr>
+                <th class="px-4 py-3 w-16">Loại</th>
+                <th class="px-4 py-3 w-24">Mã</th>
+                <th class="px-4 py-3">Neo / Cấu trúc</th>
+                <th class="px-4 py-3">Nghĩa</th>
+                <th class="px-4 py-3 w-16">CEFR</th>
+                <th class="px-4 py-3 text-right w-28">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="grammar-table-body" class="divide-y divide-stone-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+        <section id="view-sentence" class="hidden space-y-5">
+      <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-base font-bold text-stone-900">📸 Sentence Mining — Câu khó hiểu</h2>
+            <span id="sentence-count-badge" class="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-medium">0 câu</span>
+          </div>
+          <p class="text-xs text-stone-500 mt-1">Lưu câu + neo → AI nạp nghĩa câu & nghĩa ngữ cảnh của từng neo</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openScanModal('sentence')" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl shadow-sm transition">Quét câu & Prompt AI</button>
+          <button onclick="openImportModal('sentence')" class="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl transition">📥 Nhập JSON</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Tổng câu</span><div class="flex items-baseline gap-1.5"><span id="sn-stat-total" class="text-xl sm:text-2xl font-black text-stone-900">0</span><span class="text-xs text-stone-500">câu</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Chờ nạp nghĩa</span><div class="flex items-baseline gap-1.5"><span id="sn-stat-pending" class="text-xl sm:text-2xl font-black text-amber-600">0</span><span class="text-xs text-stone-500">câu</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Đang trong FSRS</span><div class="flex items-baseline gap-1.5"><span id="sn-stat-in-fsrs" class="text-xl sm:text-2xl font-black text-rose-600">0</span><span class="text-xs text-stone-500">câu</span></div></div>
+        <div class="bg-white p-3.5 rounded-2xl border border-stone-200/80 shadow-sm"><span class="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">Tổng neo</span><div class="flex items-baseline gap-1.5"><span id="sn-stat-anchors" class="text-xl sm:text-2xl font-black text-purple-600">0</span><span class="text-xs text-stone-500">neo</span></div></div>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-stone-200/80 shadow-sm">
+        <div class="flex-1"><input type="text" id="sentence-search-input" oninput="renderSentenceTable()" placeholder="Tìm ID, câu, neo, nghĩa..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-600"></div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[600px]">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium text-xs sticky top-0 z-10">
+              <tr>
+                <th class="px-4 py-3 w-20">ID</th>
+                <th class="px-4 py-3">Câu</th>
+                <th class="px-4 py-3 w-48">Neo</th>
+                <th class="px-4 py-3">Nghĩa</th>
+                <th class="px-4 py-3 w-20">Trạng thái</th>
+                <th class="px-4 py-3 text-right w-32">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="sentence-table-body" class="divide-y divide-stone-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav id="mobile-bottom-nav" class="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-2 py-1.5 flex justify-around items-center z-40 backdrop-blur-md bg-white/90">
+    <button onclick="switchTab('reader')" class="flex flex-col items-center text-stone-600 hover:text-crimson-600">
+      <span class="text-lg">📖</span>
+      <span class="text-[10px] font-medium">Đọc bài</span>
+    </button>
+    <button onclick="switchTab('review')" class="flex flex-col items-center text-stone-600 hover:text-crimson-600 relative">
+      <span class="text-lg">🎯</span>
+      <span class="text-[10px] font-medium">Ôn FSRS</span>
+    </button>
+    <button onclick="switchTab('docs')" class="flex flex-col items-center text-stone-600 hover:text-crimson-600">
+      <span class="text-lg">📚</span>
+      <span class="text-[10px] font-medium">Tài liệu</span>
+    </button>
+    <button onclick="switchTab('vocab')" class="flex flex-col items-center text-stone-600 hover:text-crimson-600">
+      <span class="text-lg">📑</span>
+      <span class="text-[10px] font-medium">Từ vựng</span>
+    </button>
+    <button onclick="openBackupModal()" class="flex flex-col items-center text-stone-600 hover:text-crimson-600">
+      <span class="text-lg">☁️</span>
+      <span class="text-[10px] font-medium">Sync</span>
+    </button>
+  </nav>
+
+  <!-- MODALS -->
+  <div id="modal-test-result" class="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-stone-200 overflow-hidden">
+      <div id="test-result-header" class="p-6 text-white text-center">
+        <span id="test-result-icon" class="text-5xl block mb-2">📊</span>
+        <h3 id="test-result-title" class="text-xl font-bold">Kết quả Thẩm định</h3>
+        <p id="test-result-sub" class="text-xs text-white/80 mt-1"></p>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-stone-50 p-3 rounded-2xl border border-stone-200"><span class="text-[10px] uppercase font-bold text-stone-400 block mb-1">Khuyết thiếu</span><span id="res-corruption-rate" class="text-xl font-black text-rose-600 font-mono">0%</span></div>
+          <div class="bg-stone-50 p-3 rounded-2xl border border-stone-200"><span class="text-[10px] uppercase font-bold text-stone-400 block mb-1">Mục tra cứu</span><span id="res-lookedup-count" class="text-xl font-black text-stone-800 font-mono">0</span></div>
+          <div class="bg-stone-50 p-3 rounded-2xl border border-stone-200"><span class="text-[10px] uppercase font-bold text-stone-400 block mb-1">Nạp FSRS</span><span id="res-fsrs-added-count" class="text-xl font-black text-amber-600 font-mono">0</span></div>
+        </div>
+        <div id="test-result-feedback" class="p-3.5 rounded-2xl text-xs leading-relaxed"></div>
+        <div><span class="text-xs font-bold uppercase text-stone-600 block mb-1.5">Mục nạp vào Bể FSRS:</span><div id="res-queued-items-box" class="bg-stone-50 border border-stone-200 rounded-xl p-3 max-h-[110px] overflow-y-auto flex flex-wrap gap-1.5 text-xs"></div></div>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+          <button onclick="closeModal('modal-test-result'); switchTab('review');" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-xl transition">Đến Tab Củng cố</button>
+          <button onclick="closeModal('modal-test-result')" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-bold rounded-xl shadow-sm transition">Đã hiểu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-fsrs-settings" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <h3 class="font-bold text-sm text-stone-900 flex items-center gap-1.5"><span>⚙️</span> Cài đặt Thẩm định & FSRS</h3>
+        <button onclick="closeModal('modal-fsrs-settings')" class="text-stone-400 hover:text-stone-700 text-xl leading-none">&times;</button>
+      </div>
+      <form onsubmit="saveFsrsSettings(event)" class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block font-bold uppercase text-stone-600 mb-1">Ngưỡng Rank tối đa:</label>
+          <input type="number" id="cfg-rank-threshold" min="100" max="10000" step="100" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none">
+          <p class="text-[11px] text-stone-400 mt-1">Chỉ từ có rank ≤ ngưỡng này mới nạp vào bể FSRS.</p>
+        </div>
+        <div>
+          <label class="block font-bold uppercase text-stone-600 mb-1">Ngưỡng khuyết thiếu tối đa (%):</label>
+          <input type="number" id="cfg-corruption-threshold" min="1" max="50" step="0.5" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none">
+        </div>
+        <div>
+          <label class="block font-bold uppercase text-stone-600 mb-1">Tỉ lệ tới hạn FSRS để mở khóa retest (%):</label>
+          <input type="number" id="cfg-retest-due-threshold" min="10" max="90" step="5" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none">
+        </div>
+        <div>
+          <label class="block font-bold uppercase text-stone-600 mb-1">Số bước tốt nghiệp (streak cần đạt):</label>
+          <select id="cfg-fsrs-steps" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm font-bold focus:ring-2 focus:ring-crimson-600 focus:outline-none">
+            <option value="4">4 bước (mặc định)</option>
+            <option value="5">5 bước</option>
+            <option value="6">6 bước</option>
+            <option value="999">Vô hạn (không tự tốt nghiệp)</option>
+          </select>
+          <p class="text-[11px] text-stone-400 mt-1">Với "Vô hạn", thẻ chỉ ra khỏi bể khi bạn bấm "Tốt nghiệp ngay".</p>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+          <button type="button" onclick="closeModal('modal-fsrs-settings')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white font-bold rounded-xl shadow-sm">Lưu cấu hình</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-flashcard-session" class="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden overflow-hidden overscroll-none" style="touch-action: none;">
+    <div class="w-full max-w-xl flex flex-col items-center">
+      <div class="w-full flex items-center justify-between text-white text-xs mb-3 px-1">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-amber-400" id="fc-counter-label">Thẻ 1 / 10</span>
+          <span class="text-stone-300">•</span>
+          <span id="fc-streak-indicator" class="text-emerald-400 font-bold">Chuỗi: 0 / 4</span>
+        </div>
+        <button onclick="closeModal('modal-flashcard-session')" class="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-xs font-semibold transition">✕ Kết thúc</button>
+      </div>
+      <div id="flashcard-element" class="flip-card w-full h-[380px] sm:h-[400px] cursor-pointer" onclick="handleFlashcardClick(event)" style="touch-action: none;">
+        <div class="flip-card-inner relative w-full h-full text-center">
+          <div class="flip-card-front absolute w-full h-full bg-white rounded-3xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl border border-stone-200 select-none">
+            <div class="swipe-indicator forgot" id="swipe-ind-forgot">✕ QUÊN</div>
+            <div class="swipe-indicator known" id="swipe-ind-known">✓ NHỚ</div>
+            <div class="swipe-indicator graduate" id="swipe-ind-graduate">🎓 TỐT NGHIỆP</div>
+            <div class="swipe-hint">← Quẹt trái: Quên · Quẹt phải: Nhớ · Quẹt lên: Tốt nghiệp</div>
+            <div class="flex items-center justify-between text-stone-400 text-xs">
+              <span id="fc-front-type-badge" class="px-2.5 py-1 rounded-full bg-stone-100 font-bold uppercase text-[10px]">Từ đơn</span>
+              <span id="fc-front-rank-badge" class="font-mono font-bold text-stone-500">Rank #120</span>
+            </div>
+                        <div class="my-auto space-y-4">
+              <div id="fc-front-text" class="text-5xl sm:text-6xl font-english font-bold text-stone-900">word</div>
+              <div class="fc-sentence-context-box bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 text-stone-700 text-sm sm:text-base font-english leading-relaxed">
+                <span class="text-[10px] font-sans font-bold uppercase tracking-wider text-amber-800 block mb-1">Ngữ cảnh (Chống học vẹt):</span>
+                <p id="fc-front-sentence" class="font-medium"></p>
+              </div>
+            </div>
+            <p class="text-stone-400 text-xs font-sans hidden sm:block">Bấm thẻ hoặc phím cách để lật · Quẹt để đánh giá</p>
+            <p class="text-stone-400 text-xs font-sans sm:hidden">Chạm để lật · Quẹt trái/phải để đánh giá</p>
+          </div>
+          <div class="flip-card-back absolute w-full h-full bg-stone-900 text-white rounded-3xl p-6 sm:p-8 flex flex-col justify-between shadow-2xl border border-stone-800 select-none overflow-y-auto">
+            <div class="flex items-center justify-between text-stone-400 text-xs">
+              <div class="flex items-center gap-2">
+                <span id="fc-back-pinyin" class="text-amber-300 text-xl font-bold font-sans"></span>
+                <button type="button" onclick="event.stopPropagation(); speakText(document.getElementById('fc-front-text').innerText)" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">🔊</button>
+              </div>
+              <span id="fc-back-hanviet" class="text-xs uppercase font-bold text-stone-300"></span>
+            </div>
+            <div class="my-auto space-y-3 text-left py-2">
+              <div><span class="text-[10px] uppercase font-bold text-stone-400 block mb-1">Nghĩa tiếng Việt:</span><p id="fc-back-meaning" class="text-sm sm:text-base text-stone-100 font-medium leading-relaxed bg-white/5 p-3 rounded-xl border border-white/10"></p></div>
+              <div id="fc-back-logic-wrapper"><span class="text-[10px] uppercase font-bold text-stone-400 block mb-1">Từ nguyên & Ghi chú:</span><p id="fc-back-logic" class="text-xs text-stone-300 bg-white/5 p-3 rounded-xl border border-white/10"></p></div>
+            </div>
+            <div class="space-y-2 pt-2 border-t border-white/10" onclick="event.stopPropagation()">
+              <button onclick="graduateCurrentFlashcard()" class="w-full py-2 px-3 bg-gradient-to-r from-emerald-700 to-teal-600 hover:from-emerald-800 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
+                <span>🎓</span> Tốt nghiệp ngay (đuổi khỏi bể)
+              </button>
+              <div class="grid grid-cols-4 gap-2">
+                <button onclick="handleFsrsResponse(1)" class="py-2.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex flex-col items-center"><span>Quên</span><span class="text-[9px] text-rose-200 font-normal">Reset</span></button>
+                <button onclick="handleFsrsResponse(2)" class="py-2.5 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex flex-col items-center"><span>Khó</span><span class="text-[9px] text-amber-200 font-normal">+1 ngày</span></button>
+                <button onclick="handleFsrsResponse(3)" class="py-2.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex flex-col items-center"><span>Tốt</span><span class="text-[9px] text-emerald-200 font-normal">+1</span></button>
+                <button onclick="handleFsrsResponse(4)" class="py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex flex-col items-center"><span>Dễ</span><span class="text-[9px] text-blue-200 font-normal">+1</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-vocab-card" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="bg-gradient-to-r from-crimson-800 to-crimson-700 text-white p-5 flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 id="vc-card-word" class="text-3xl font-english font-bold tracking-wider"></h3>
+            <button onclick="speakText(document.getElementById('vc-card-word').innerText)" class="p-1 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+            </button>
+            <span id="vc-card-rank-badge" class="text-xs font-mono font-bold bg-white/15 text-amber-200 border border-white/20 px-2 py-0.5 rounded-lg"></span>
+          </div>
+          <p id="vc-card-pinyin" class="text-amber-200 text-sm font-medium mt-0.5"></p>
+        </div>
+        <button onclick="closeModal('modal-vocab-card')" class="text-stone-300 hover:text-white text-2xl p-1">&times;</button>
+      </div>
+      <div class="bg-stone-100 px-5 py-3 border-b border-stone-200 flex items-center justify-between flex-wrap gap-2">
+        <span class="text-xs font-bold text-stone-600 uppercase">Mức độ nhận biết:</span>
+        <div class="flex items-center gap-1.5" id="vc-lingq-selector">
+          <button onclick="setLingqStatus('vocab', currentOpenKey, 1)" class="px-2.5 py-1 text-xs rounded-lg font-bold bg-yellow-200 hover:bg-yellow-300 text-yellow-900 border border-yellow-400">1: Mới</button>
+          <button onclick="setLingqStatus('vocab', currentOpenKey, 2)" class="px-2.5 py-1 text-xs rounded-lg font-bold bg-orange-200 hover:bg-orange-300 text-orange-900 border border-orange-400">2: Đang học</button>
+          <button onclick="setLingqStatus('vocab', currentOpenKey, 3)" class="px-2.5 py-1 text-xs rounded-lg font-bold bg-emerald-200 hover:bg-emerald-300 text-emerald-900 border border-emerald-400">3: Gần nhớ</button>
+          <button onclick="setLingqStatus('vocab', currentOpenKey, 4)" class="px-3 py-1 text-xs rounded-lg font-bold bg-white hover:bg-stone-200 text-stone-800 border border-stone-300 shadow-sm flex items-center gap-1">✔ Đã biết</button>
+        </div>
+      </div>
+      <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+        <div><h4 class="text-xs uppercase font-bold text-stone-400 mb-1">Ý nghĩa từ vựng:</h4><div id="vc-card-meanings-list" class="text-stone-900 text-sm font-semibold bg-stone-50 p-3 rounded-xl border border-stone-200/60 leading-relaxed space-y-1"></div></div>
+        <div><h4 class="text-xs uppercase font-bold text-stone-400 mb-1">Từ nguyên / Mẹo nhớ:</h4><div id="vc-card-logic" class="text-stone-700 text-xs bg-amber-50/60 p-3 rounded-xl border border-amber-200/60 leading-relaxed font-sans"></div></div>
+        <div><h4 class="text-xs uppercase font-bold text-stone-400 mb-1">Ví dụ:</h4><div id="vc-card-examples" class="space-y-1.5 text-xs text-stone-700"></div></div>
+        <div class="pt-2 flex items-center justify-between border-t border-stone-100">
+          <button id="vc-card-edit-btn" class="text-xs font-semibold text-crimson-600 hover:text-crimson-700">✏️ Chỉnh sửa</button>
+          <div class="flex items-center gap-2">
+            <button id="vc-card-fsrs-btn" onclick="quickAddToFsrs('vocab', currentOpenKey)" class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold rounded-lg transition flex items-center gap-1">🎯 Ném vào FSRS</button>
+            <button onclick="closeModal('modal-vocab-card')" class="px-4 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg transition">Đóng</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-scan" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-stone-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <div><h3 id="scan-modal-title" class="font-bold text-base text-stone-900">Quét dữ liệu & Prompt AI</h3><p id="scan-modal-sub" class="text-xs text-stone-500">Chỉ quét các mục CHƯA BIẾT</p></div>
+        <button onclick="closeModal('modal-scan')" class="text-stone-400 hover:text-stone-700 text-xl">&times;</button>
+      </div>
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase text-stone-600">Mục chưa có dữ liệu (<span id="missing-count" class="text-crimson-600 font-bold">0</span>):</span>
+            <div class="flex items-center gap-2">
+              <button onclick="markAllMissingAsKnown()" class="text-xs text-emerald-600 hover:underline font-semibold">✔ Đánh dấu "Đã biết"</button>
+              <button onclick="copyMissingItemsOnly()" class="text-xs text-crimson-600 hover:underline font-semibold flex items-center gap-1">📋 Sao chép</button>
+            </div>
+          </div>
+          <div id="missing-tags-container" class="bg-stone-50 border border-stone-200 rounded-xl p-3 min-h-[70px] max-h-[120px] overflow-y-auto flex flex-wrap gap-1.5 text-sm"></div>
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold uppercase text-stone-600">Prompt AI:</span>
+              <label class="text-[11px] text-stone-600 flex items-center gap-1 cursor-pointer bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
+                <input type="checkbox" onchange="toggleContextDepth(this)" class="rounded text-purple-600"> Kèm câu trước & sau (+/-1)
+              </label>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="saveCustomPromptTemplate()" title="Lưu lại prompt bạn tự sửa để dùng cho các lần sau" class="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-semibold rounded transition">💾 Lưu mẫu sửa</button>
+              <button onclick="resetToDefaultPromptTemplate()" title="Khôi phục prompt gốc" class="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-semibold rounded transition">🔄 Khôi phục</button>
+              <button onclick="copyGeneratedPrompt()" class="px-3 py-1 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg shadow-sm transition">Sao chép</button>
+            </div>
+          </div>
+          <textarea id="ai-prompt-preview" readonly rows="8" class="w-full bg-stone-900 text-stone-100 rounded-xl p-3 text-xs font-mono border border-stone-800 leading-relaxed"></textarea>
+        </div>
+        <div class="pt-2 border-t border-stone-100">
+          <label class="block text-xs font-bold uppercase text-stone-600 mb-1">Dán JSON từ AI:</label>
+          <textarea id="quick-import-json" rows="3" placeholder='Dán JSON...' class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-xs font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea>
+          <button onclick="applyQuickImport()" class="mt-2 w-full py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl transition">🚀 Nạp JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-doc-editor" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-xl rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-5 border-b border-stone-200 flex items-center justify-between">
+        <h3 id="doc-modal-title" class="font-bold text-base text-stone-900">Thêm bài đọc</h3>
+        <button onclick="closeModal('modal-doc-editor')" class="text-stone-400 hover:text-stone-700 text-xl">&times;</button>
+      </div>
+      <form id="doc-form" onsubmit="saveDocumentForm(event)" class="p-5 space-y-4">
+        <input type="hidden" id="doc-id">
+        <div><label class="block text-xs font-bold uppercase text-stone-600 mb-1">Tiêu đề</label><input type="text" id="doc-title-input" required placeholder="Ví dụ: A1 - Daily Life" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+        <div><label class="block text-xs font-bold uppercase text-stone-600 mb-1">Thư mục</label><select id="doc-folder-select" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none font-medium"><option value="">📂 (Gốc)</option></select></div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold uppercase text-stone-600">Nội dung (phân cách bằng khoảng trắng)</label>
+            <div class="flex items-center gap-3">
+              <button type="button" onclick="copySegmentationPrompt()" class="text-xs text-amber-700 hover:underline font-semibold">📋 Prompt chuẩn hóa</button>
+              <button type="button" onclick="insertSampleText()" class="text-xs text-crimson-600 hover:underline">Chèn mẫu</button>
+            </div>
+          </div>
+          <textarea id="doc-content-input" rows="8" required placeholder="Ví dụ: Hello , my name is John ." class="w-full bg-stone-50 border border-stone-200 rounded-xl p-3.5 text-sm font-english text-base focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea>
+        </div>
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-base">🔤</span>
+              <div>
+                <p class="text-xs font-bold text-emerald-900">Chuẩn hóa văn bản tiếng Anh</p>
+                <p class="text-[10px] text-emerald-700">Tách dấu câu rời khỏi từ, chuẩn hóa khoảng trắng. Tiếng Anh đã có sẵn space nên không cần Jieba.</p>
+              </div>
+            </div>
+            <button type="button" onclick="callSmartTokenize()" id="btn-hanlp-tokenize" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 flex items-center gap-1.5">
+              <span>⚡</span> Chuẩn hóa ngay
+            </button>
+          </div>
+          <div id="jieba-load-status" class="text-[10px] text-emerald-700 hidden">
+            <span class="inline-block">Không cần Jieba cho tiếng Anh.</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-doc-editor')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl shadow-sm">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-folder-editor" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <h3 id="folder-modal-title" class="font-bold text-sm text-stone-900 flex items-center gap-1.5"><span>📁</span> Tạo thư mục</h3>
+        <button onclick="closeModal('modal-folder-editor')" class="text-stone-400 hover:text-stone-700 text-xl leading-none">&times;</button>
+      </div>
+      <form onsubmit="saveFolderForm(event)" class="p-5 space-y-4">
+        <input type="hidden" id="folder-edit-id">
+        <div><label class="block text-xs font-bold uppercase text-stone-600 mb-1">Tên thư mục</label><input type="text" id="folder-name-input" required placeholder="Ví dụ: A1 Beginner" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onclick="closeModal('modal-folder-editor')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl shadow-sm">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-move-doc" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <h3 class="font-bold text-sm text-stone-900 flex items-center gap-1.5"><span>📂</span> Chuyển thư mục</h3>
+        <button onclick="closeModal('modal-move-doc')" class="text-stone-400 hover:text-stone-700 text-xl leading-none">&times;</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <input type="hidden" id="move-doc-target-id">
+        <p class="text-xs text-stone-600">Bài đọc: <b id="move-doc-title" class="text-stone-900 font-englishSans"></b></p>
+        <div><label class="block text-xs font-bold uppercase text-stone-600 mb-1">Chọn thư mục:</label><select id="move-doc-select" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none font-medium"></select></div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onclick="closeModal('modal-move-doc')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+          <button type="button" onclick="applyMoveDoc()" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl shadow-sm">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-folder-tree" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-stone-200 overflow-hidden flex flex-col max-h-[88vh]">
+      <div class="p-4 sm:p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <div>
+          <h3 class="font-bold text-base text-stone-900 flex items-center gap-2"><span>📁</span> Cấu trúc Thư mục & Thứ tự</h3>
+          <p class="text-xs text-stone-500 mt-0.5">Kéo thả biểu tượng ⠿ để đổi vị trí</p>
+        </div>
+        <button onclick="closeModal('modal-folder-tree')" class="text-stone-400 hover:text-stone-700 text-2xl leading-none p-1">&times;</button>
+      </div>
+      <div id="folder-tree-vertical-container" class="p-4 space-y-4 overflow-y-auto flex-1 bg-stone-50/50"></div>
+      <div class="p-3.5 border-t border-stone-200 bg-white flex items-center justify-between">
+        <button onclick="openFolderEditorModal()" class="text-xs text-crimson-600 hover:text-crimson-700 font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-crimson-50 transition"><span>📁</span> + Thư mục mới</button>
+        <button onclick="closeModal('modal-folder-tree')" class="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-xl shadow-xs transition">Xong</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-vocab-editor" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between">
+        <h3 id="vocab-modal-title" class="font-bold text-sm text-stone-900">Thêm / Sửa Từ vựng</h3>
+        <button onclick="closeModal('modal-vocab-editor')" class="text-stone-400 hover:text-stone-700 text-xl">&times;</button>
+      </div>
+      <form id="vocab-form" onsubmit="saveVocabForm(event)" class="p-5 space-y-3 max-h-[80vh] overflow-y-auto">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-bold text-stone-600 mb-1">Từ vựng</label><input type="text" id="vc-input-word" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-lg font-english font-bold focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+          <div><label class="block text-xs font-bold text-stone-600 mb-1">IPA</label><input type="text" id="vc-input-pinyin" required placeholder="/ˈwɜːrd/" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+        </div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Ý nghĩa</label><textarea id="vc-input-meaning" rows="3" required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea></div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Từ nguyên / Mẹo nhớ</label><textarea id="vc-input-logic" rows="2" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea></div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Ví dụ (mỗi dòng 1 câu)</label><textarea id="vc-input-examples" rows="2" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs font-english focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-vocab-editor')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-grammar-editor" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-purple-200 overflow-hidden">
+      <div class="p-4 border-b border-purple-200 flex items-center justify-between bg-purple-50">
+        <h3 id="grammar-modal-title" class="font-bold text-sm text-purple-900">Thêm / Sửa Cấu trúc Ngữ pháp</h3>
+        <button onclick="closeModal('modal-grammar-editor')" class="text-stone-400 hover:text-stone-700 text-xl">&times;</button>
+      </div>
+      <form id="grammar-form" onsubmit="saveGrammarForm(event)" class="p-5 space-y-3 max-h-[80vh] overflow-y-auto">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-stone-600 mb-1 flex items-center justify-between">
+              <span>Mã số *</span>
+              <button type="button" onclick="document.getElementById('gm-input-id').value = generateGrammarId();" 
+                      class="text-[10px] text-purple-600 hover:text-purple-800 font-semibold normal-case">🎲 Đổi mã</button>
+            </label>
+            <input type="text" id="gm-input-id" required placeholder="G0001" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-purple-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-stone-600 mb-1">Loại *</label>
+            <select id="gm-input-type" required onchange="onGrammarTypeChange()" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-purple-600 focus:outline-none">
+              <option value="pair">Pair (cặp liên từ)</option>
+              <option value="single">Single (neo đơn)</option>
+              <option value="chain">Chain (chuỗi neo)</option>
+            </select>
+          </div>
+        </div>
+        <div id="gm-fields-pair">
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Left Group hoặc Token</label><input type="text" id="gm-input-left" placeholder="concession (group) hoặc although (token)" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none"></div>
+            <div><label class="block text-xs font-bold text-stone-600 mb-1">Right Group hoặc Token</label><input type="text" id="gm-input-right" placeholder="contrast (group) hoặc but (token)" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none"></div>
+          </div>
+        </div>
+        <div id="gm-fields-single" class="hidden">
+          <label class="block text-xs font-bold text-stone-600 mb-1">Anchor Group hoặc Token (phân cách bằng dấu phẩy)</label>
+          <input type="text" id="gm-input-anchor" placeholder="not only, not just (hoặc tên group)" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none">
+        </div>
+        <div id="gm-fields-chain" class="hidden">
+          <label class="block text-xs font-bold text-stone-600 mb-1">Chain segments (mỗi dòng 1 segment, phân cách bằng dấu phẩy nếu là group/token)</label>
+          <textarea id="gm-input-chain" rows="3" placeholder="the&#10;the" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs font-mono focus:ring-2 focus:ring-purple-600 focus:outline-none"></textarea>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="block text-xs font-bold text-stone-600 mb-1">CEFR Level</label><input type="text" id="gm-input-level" placeholder="B1" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none"></div>
+          <div><label class="block text-xs font-bold text-stone-600 mb-1">Priority</label><input type="number" id="gm-input-priority" value="10" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-purple-600 focus:outline-none"></div>
+          <div><label class="block text-xs font-bold text-stone-600 mb-1">Loại hiển thị</label><input type="text" id="gm-input-meaning" placeholder="Mặc dù... nhưng..." required class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none"></div>
+        </div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Nghĩa tiếng Việt *</label><textarea id="gm-input-meaning-full" rows="2" required placeholder="Mặc dù... nhưng..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-sm focus:ring-2 focus:ring-purple-600 focus:outline-none"></textarea></div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Ghi chú</label><textarea id="gm-input-notes" rows="2" class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-purple-600 focus:outline-none"></textarea></div>
+        <div><label class="block text-xs font-bold text-stone-600 mb-1">Ví dụ (mỗi dòng 1 câu)</label><textarea id="gm-input-examples" rows="3" placeholder="Although it was cold , I still went out ." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs font-english focus:ring-2 focus:ring-purple-600 focus:outline-none"></textarea></div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-stone-100">
+          <button type="button" onclick="closeModal('modal-grammar-editor')" class="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+          <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-import" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between">
+        <h3 id="import-modal-title" class="font-bold text-sm text-stone-900">Nhập dữ liệu JSON</h3>
+        <button onclick="closeModal('modal-import')" class="text-stone-400 hover:text-stone-700 text-xl">&times;</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p id="import-modal-desc" class="text-xs text-stone-500"></p>
+        <textarea id="import-json-area" rows="8" placeholder="[{ ... }]" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-3 text-xs font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none"></textarea>
+        <div class="flex justify-between items-center pt-2">
+          <button onclick="exportCurrentData()" class="text-xs text-stone-600 hover:text-stone-900 font-semibold">📤 Tải JSON hiện tại</button>
+          <div class="flex gap-2">
+            <button onclick="closeModal('modal-import')" class="px-4 py-2 bg-stone-100 text-stone-700 text-xs font-semibold rounded-xl">Hủy</button>
+            <button onclick="processGeneralImport()" class="px-5 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl">Nạp</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-backup-restore" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
+      <div class="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <button onclick="closeModal('modal-backup-restore')" title="Quay lại" class="flex-shrink-0 w-10 h-10 mt-2 flex items-center justify-center rounded-xl bg-stone-100 hover:bg-crimson-600 text-stone-700 hover:text-white transition-all duration-150 active:scale-95 shadow-xs mr-3"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"></path></svg></button>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-bold text-base text-stone-900">Sao lưu & Khôi phục dữ liệu</h3>
+          <p class="text-xs text-stone-500 mt-0.5">Xuất và nạp toàn bộ bài đọc, từ điển và tiến độ FSRS</p>
+        </div>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-stone-50 p-3.5 rounded-xl border border-stone-200/80 space-y-1.5 text-xs text-stone-600">
+          <div class="flex justify-between"><span>📚 Bài đọc:</span> <b id="stat-docs-count" class="text-stone-900">0</b></div>
+          <div class="flex justify-between"><span>📑 Từ vựng:</span> <b id="stat-vocab-count" class="text-stone-900">0</b></div>
+          <div class="flex justify-between"><span>🎯 Mục FSRS:</span> <b id="stat-fsrs-count" class="text-stone-900">0</b></div>
+          <div class="flex justify-between"><span>🎯 Trạng thái LingQ:</span> <b id="stat-status-count" class="text-stone-900">0</b></div>
+          <div class="flex justify-between"><span>🟣 Ngữ pháp:</span> <b id="stat-grammar-count" class="text-stone-900">0</b></div>
+        </div>
+        <div class="flex border-b border-stone-200 text-xs font-semibold">
+          <button type="button" onclick="switchBackupSubTab('file')" id="subtab-btn-file" class="flex-1 py-2 text-center border-b-2 border-crimson-600 text-crimson-600 transition font-bold">📁 File cục bộ</button>
+          <button type="button" onclick="switchBackupSubTab('cloud')" id="subtab-btn-cloud" class="flex-1 py-2 text-center border-b-2 border-transparent text-stone-500 hover:text-stone-800 transition">☁️ Đám mây (Supabase)</button>
+        </div>
+        <div id="subtab-content-file" class="space-y-2.5">
+          <button onclick="exportFullBackup()" class="w-full py-3 px-4 bg-crimson-600 hover:bg-crimson-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Tải về file sao lưu (.JSON)
+          </button>
+          <button onclick="document.getElementById('backup-file-input').click()" class="w-full py-3 px-4 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold border border-stone-200 transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            Chọn file sao lưu (.JSON) để nạp lại
+          </button>
+        </div>
+        <div id="subtab-content-cloud" class="hidden space-y-3 overflow-y-auto max-h-[60vh] pr-1">
+          <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-xs space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-amber-900 flex items-center gap-1.5">
+                <span id="cloud-status-dot" class="w-2.5 h-2.5 rounded-full bg-stone-300 inline-block"></span>
+                <span id="cloud-status-text">Chưa kết nối Supabase</span>
+              </span>
+            </div>
+            <div id="cloud-user-email" class="text-[11px] text-stone-600 truncate hidden">
+              Tài khoản: <span id="cloud-user-email-text" class="font-semibold text-stone-800"></span>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-bold uppercase tracking-wider text-stone-600">Cấu hình Supabase:</label>
+            </div>
+            <input type="text" id="sb-url" value="https://wxmzmcopqierhdwnshyr.supabase.co" placeholder="Supabase Project URL" class="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs font-mono">
+            <input type="text" id="sb-anon-key" value="sb_publishable_RiAgCkxK9tZxhuKEqCk2SQ_0LqnO138" placeholder="Supabase Anon Key" class="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs font-mono">
+            <div class="flex justify-end">
+              <button type="button" onclick="saveSupabaseConfig()" class="text-xs font-bold text-white bg-stone-800 hover:bg-stone-900 px-3 py-1.5 rounded-xl transition">💾 Lưu khóa</button>
+            </div>
+          </div>
+          <div id="sb-auth-box" class="space-y-2 border-t border-stone-200 pt-2">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-stone-600">Tài khoản đồng bộ:</label>
+            <input type="email" id="sb-auth-email" placeholder="Email của bạn" class="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs">
+            <input type="password" id="sb-auth-pass" placeholder="Mật khẩu" class="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs">
+            <div class="flex gap-2">
+              <button type="button" onclick="handleSupabaseSignIn()" class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs">Đăng nhập</button>
+              <button type="button" onclick="handleSupabaseSignUp()" class="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl text-xs border border-stone-200">Đăng ký</button>
+            </div>
+          </div>
+          <div class="pt-2">
+            <button type="button" onclick="syncWithSupabase()" id="btn-cloud-upload" disabled class="w-full py-3 px-4 bg-gradient-to-r from-crimson-600 to-rose-600 hover:from-crimson-700 hover:to-rose-700 text-white rounded-xl text-sm font-bold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              <span>🔄 Đồng bộ Delta 2 chiều (như Anki)</span>
+            </button>
+          </div>
+          <div class="pt-2 border-t border-stone-200 space-y-2">
+            <button type="button" onclick="setAllTimestampsToNow()" class="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+              <span>⏰</span> Set TOÀN BỘ timestamp = Hôm nay (để đẩy lên cloud)
+            </button>
+            <p class="text-[10px] text-stone-500 text-center leading-relaxed">
+              Gán <code class="bg-stone-100 px-1 rounded">updatedAt = now()</code> cho mọi dữ liệu local.<br>
+              Dùng khi muốn ép máy này ghi đè toàn bộ dữ liệu trên cloud.
+            </p>
+          </div>
+          <div id="cloud-last-sync-time" class="text-[11px] text-center text-stone-400 mt-1">Chưa có lượt đồng bộ nào.</div>
+          <div class="pt-2 border-t border-stone-200">
+            <button type="button" onclick="forceFullResync()" class="w-full py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+              <span>⚠️</span> Ép đồng bộ lại từ đầu (Force Full Sync)
+            </button>
+            <p class="text-[10px] text-stone-500 text-center mt-1">Đặt lastSyncedAt = 0, sau đó chạy sync lại toàn bộ.</p>
+          </div>
+          <div class="pt-2 border-t border-stone-200">
+            <button type="button" onclick="forcePullAllFromCloud()" id="btn-force-pull" class="w-full py-3 px-4 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white rounded-xl text-sm font-bold shadow-md transition flex items-center justify-center gap-2">
+              <span>⬇️</span> FORCE PULL — Kéo TOÀN BỘ từ cloud về
+            </button>
+            <p class="text-[10px] text-stone-500 text-center mt-1 leading-relaxed">
+              Bỏ qua timestamp. Xóa local, kéo hết từ cloud về.<br>
+              Dùng khi máy này thiếu dữ liệu và cloud là nguồn đúng.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-select-doc" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-stone-200 overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="p-4 sm:p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <div><h3 class="font-bold text-base text-stone-900 flex items-center gap-2"><span>📚</span> Chọn bài đọc</h3><p class="text-xs text-stone-500 mt-0.5">Nhấp vào bài đọc để bắt đầu</p></div>
+        <button onclick="closeModal('modal-select-doc')" class="text-stone-400 hover:text-stone-700 text-2xl leading-none p-1">&times;</button>
+      </div>
+      <div class="p-3 border-b border-stone-100 bg-white">
+        <input type="text" id="doc-picker-search" oninput="filterDocPickerList()" placeholder="🔍 Tìm kiếm..." class="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-crimson-600">
+      </div>
+      <div id="doc-picker-list" class="p-3 sm:p-4 space-y-2 overflow-y-auto flex-1"></div>
+      <div class="p-3.5 border-t border-stone-100 bg-stone-50 flex items-center justify-between">
+        <button onclick="closeModal('modal-select-doc'); switchTab('docs');" class="text-xs text-crimson-600 hover:text-crimson-700 font-semibold flex items-center gap-1">Quản lý tài liệu →</button>
+        <button onclick="closeModal('modal-select-doc')" class="px-4 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold rounded-xl transition">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-rank-export" class="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-xl rounded-2xl shadow-xl border border-stone-200 overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <div><h3 id="rank-export-title" class="font-bold text-base text-stone-900 flex items-center gap-2"><span>📊</span> Trích xuất theo Rank</h3><p id="rank-export-sub" class="text-xs text-stone-500 mt-0.5"></p></div>
+        <button onclick="closeModal('modal-rank-export')" class="text-stone-400 hover:text-stone-700 text-xl leading-none p-1">&times;</button>
+      </div>
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
+        <div class="bg-stone-50 p-4 rounded-xl border border-stone-200/80 space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div><span class="text-xs text-stone-500 font-medium mb-1 block">Từ Rank (#):</span><input type="number" id="rank-export-min" min="1" value="1" oninput="updateRankExportPreview()" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+            <div><span class="text-xs text-stone-500 font-medium mb-1 block">Đến Rank (#):</span><input type="number" id="rank-export-max" min="1" value="50" oninput="updateRankExportPreview()" class="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-sm font-bold font-mono focus:ring-2 focus:ring-crimson-600 focus:outline-none"></div>
+          </div>
+          <div class="pt-2 flex flex-col sm:flex-row gap-3 text-xs text-stone-700">
+            <label class="flex items-center gap-1.5 cursor-pointer font-medium select-none"><input type="checkbox" id="rank-export-exclude-known" checked onchange="updateRankExportPreview()" class="rounded text-crimson-600"> Loại bỏ mục Đã biết</label>
+            <label class="flex items-center gap-1.5 cursor-pointer font-medium select-none"><input type="checkbox" id="rank-export-only-missing" onchange="updateRankExportPreview()" class="rounded text-crimson-600"> Chỉ lấy mục chưa có</label>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold uppercase text-stone-600">Kết quả (<span id="rank-export-count" class="text-crimson-600 font-bold">0</span>):</span>
+            <button onclick="copyRankExportItemsOnly()" class="text-xs text-crimson-600 hover:underline font-semibold">📋 Sao chép danh sách</button>
+          </div>
+          <div id="rank-export-preview-box" class="bg-stone-50 border border-stone-200 rounded-xl p-3 min-h-[80px] max-h-[140px] overflow-y-auto flex flex-wrap gap-1.5 text-sm"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold uppercase text-stone-600">Prompt AI:</span>
+            <button onclick="copyRankExportPrompt()" class="px-2.5 py-1 bg-stone-800 hover:bg-stone-900 text-white text-xs font-semibold rounded-lg shadow-sm transition">Sao chép Prompt</button>
+          </div>
+          <textarea id="rank-export-prompt-box" readonly rows="5" class="w-full bg-stone-900 text-stone-100 rounded-xl p-3 text-xs font-mono border border-stone-800 leading-relaxed"></textarea>
+        </div>
+      </div>
+      <div class="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
+        <button onclick="downloadRankExportJson()" class="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold rounded-xl border border-stone-200 transition">💾 Tải JSON</button>
+        <button onclick="closeModal('modal-rank-export')" class="px-4 py-2 bg-crimson-600 hover:bg-crimson-700 text-white text-xs font-semibold rounded-xl transition">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- SUPABASE SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- APP SCRIPTS -->
+  <script src="js/00-config.js"></script>
+  <script src="js/03-state.js"></script>
+  <script src="js/01-storage.js"></script>
+  <script src="js/02-text-utils.js"></script>
+  <script src="js/04-ui-shared.js"></script>
+  <script src="js/05-vocab.js"></script>
+  <script src="js/06-fsrs-core.js"></script>
+  <script src="js/07-fsrs-flashcard.js"></script>
+  <script src="js/08-test-mode.js"></script>
+  <script src="js/09-grammar-engine.js"></script>
+  <script src="js/10-grammar-ui.js"></script>
+  <script src="js/11-grammar-fsrs.js"></script>
+  <script src="js/12-structure-select.js"></script>
+  <script src="js/13-sentence-mining.js"></script>
+  <script src="js/14-docs-folders.js"></script>
+  <script src="js/15-reader.js"></script>
+  <script src="js/16-ai-scan.js"></script>
+  <script src="js/17-backup-sync.js"></script>
+  <script src="js/18-bootstrap.js"></script>
+</body>
+</html>
