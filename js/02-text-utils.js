@@ -130,16 +130,6 @@ function getCandidateBaseWords(word) {
     candidates.add(w.slice(0, -3));
     candidates.add(w.slice(0, -2));
   }
-  // Thêm vào cuối hàm, trước return
-const noApos = w.replace(/['’](s|re|ve|ll|d|m|t)$/i, '');
-if (noApos !== w) candidates.add(noApos);
-
-const irregular = {
-  children: 'child', feet: 'foot', teeth: 'tooth',
-  mice: 'mouse', geese: 'goose', men: 'man',
-  women: 'woman', people: 'person'
-};
-if (irregular[w]) candidates.add(irregular[w]);
 
   return Array.from(candidates);
 }
@@ -186,13 +176,3 @@ function getVocabEntry(word) {
 
   return null;
 }
-// Thêm vào cuối hàm, trước return
-const noApos = w.replace(/['’](s|re|ve|ll|d|m|t)$/i, '');
-if (noApos !== w) candidates.add(noApos);
-
-const irregular = {
-  children: 'child', feet: 'foot', teeth: 'tooth',
-  mice: 'mouse', geese: 'goose', men: 'man',
-  women: 'woman', people: 'person'
-};
-if (irregular[w]) candidates.add(irregular[w]);
